@@ -18,7 +18,7 @@
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:app": "npm run build:renderer && npm run build:electron",
-    "dist": "npm run verify && electron-builder --win nsis portable",
+    "dist": "npm run verify && electron-builder --win nsis portable --publish never",
     "pack": "npm run verify && electron-builder --dir",
     "start": "electron ."
   },
