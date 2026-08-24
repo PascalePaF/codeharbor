@@ -16,11 +16,11 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -40,4 +40,9 @@ jobs:
             "$hash  $($_.Name)"
           }
           $checksumLines | Set-Content -LiteralPath release/SHA256SUMS.txt -Encoding utf8
-          gh release create $env:GITHUB_REF_NAME $artifacts release/SHA256SUMS.txt --verify-tag --generate-notes --title "CodeHarbor $env:GITHUB_REF_NAME"
+          $notesFile = "docs/RELEASE_NOTES-$env:GITHUB_REF_NAME.md"
+          if (Test-Path -LiteralPath $notesFile) {
+            gh release create $env:GITHUB_REF_NAME $artifacts release/SHA256SUMS.txt --verify-tag --notes-file $notesFile --title "CodeHarbor $env:GITHUB_REF_NAME"
+          } else {
+            gh release create $env:GITHUB_REF_NAME $artifacts release/SHA256SUMS.txt --verify-tag --generate-notes --title "CodeHarbor $env:GITHUB_REF_NAME"
+          }
