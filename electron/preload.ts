@@ -11,6 +11,8 @@ import type {
   TotpCode,
   TotpInput,
   AccountScanStatus,
+  BackupExportResult,
+  BackupImportResult,
 } from '../src/shared/contracts';
 
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> => ipcRenderer.invoke(channel, ...args);
@@ -37,6 +39,10 @@ const bridge: CodeHarborBridge = {
   },
   settings: {
     update: (input: Partial<AppSettings>) => invoke<AppSettings>('settings:update', input),
+  },
+  backup: {
+    exportAll: (password: string) => invoke<BackupExportResult>('backup:export', password),
+    importAll: (password: string) => invoke<BackupImportResult>('backup:import', password),
   },
   system: {
     copy: (text: string) => invoke<void>('system:copy', text),

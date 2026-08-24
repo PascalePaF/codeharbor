@@ -1,6 +1,7 @@
 import { LoaderCircle } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccountModal } from './components/AccountModal';
+import { BackupModal } from './components/BackupModal';
 import { MailImportModal } from './components/MailImportModal';
 import { Sidebar, type PageId } from './components/Sidebar';
 import { ToastStack, type ToastMessage } from './components/Toast';
@@ -28,6 +29,8 @@ type ModalState =
   | { type: 'mail-import' }
   | { type: 'totp'; entry?: PublicTotpEntry }
   | { type: 'totp-import' }
+  | { type: 'backup-export' }
+  | { type: 'backup-import' }
   | null;
 
 export default function App() {
@@ -203,6 +206,36 @@ export default function App() {
     finally { setBusy(false); }
   };
 
+  const exportBackup = async (password: string) => {
+    setBusy(true);
+    try {
+      const result = await window.codeHarbor.backup.exportAll(password);
+      setModal(null);
+      if (!result.canceled) toast(`完整备份已导出：${result.accountCount} 个邮箱，${result.totpCount} 个 2FA`);
+    } catch (error) { toast(friendlyError(error), 'error'); }
+    finally { setBusy(false); }
+  };
+
+  const importBackup = async (password: string) => {
+    setBusy(true);
+    try {
+      const result = await window.codeHarbor.backup.importAll(password);
+      if (result.canceled) { setModal(null); return; }
+      await reload();
+      await refreshTotp();
+      setMessages([]);
+      setLastScan(undefined);
+      setModal(null);
+      toast(`备份导入完成：邮箱新增 ${result.accountsCreated} / 更新 ${result.accountsUpdated}，2FA 新增 ${result.totpCreated} / 更新 ${result.totpUpdated}`);
+    } catch (error) { toast(friendlyError(error), 'error'); }
+    finally { setBusy(false); }
+  };
+
+  const openExternal = async (url: string) => {
+    try { await window.codeHarbor.system.openExternal(url); }
+    catch (error) { toast(friendlyError(error), 'error'); }
+  };
+
   const copy = async (value: string) => {
     try { await window.codeHarbor.system.copy(value); toast('验证码已复制'); }
     catch (error) { toast(friendlyError(error), 'error'); }
@@ -223,14 +256,16 @@ export default function App() {
           {page === 'inbox' && <InboxPage accounts={data.accounts} messages={messages} providers={data.providers} search={search} scanning={scanning} lastScan={lastScan} onScan={() => scanMail(false)} onCopy={copy} onGoAccounts={() => changePage('accounts')} />}
           {page === 'accounts' && <AccountsPage accounts={data.accounts} providers={data.providers} search={search} testingId={testingId} onAdd={() => setModal({ type: 'account' })} onBulk={() => setModal({ type: 'mail-import' })} onEdit={(account) => setModal({ type: 'account', account })} onDelete={deleteAccount} onToggle={toggleAccount} onTest={testAccount} />}
           {page === 'totp' && <TotpPage entries={data.totpEntries} codes={totpCodes} search={search} onAdd={() => setModal({ type: 'totp' })} onBulk={() => setModal({ type: 'totp-import' })} onEdit={(entry) => setModal({ type: 'totp', entry })} onDelete={deleteTotp} onCopy={copy} />}
-          {page === 'settings' && <SettingsPage settings={data.settings} vault={data.vault} providers={data.providers} version={data.version} busy={busy} onSave={saveSettings} />}
+          {page === 'settings' && <SettingsPage settings={data.settings} vault={data.vault} providers={data.providers} version={data.version} busy={busy} onSave={saveSettings} onExport={() => setModal({ type: 'backup-export' })} onImport={() => setModal({ type: 'backup-import' })} onOpenExternal={openExternal} />}
         </div>
       </main>
 
-      {modal?.type === 'account' && <AccountModal providers={data.providers} account={modal.account} busy={busy} onClose={() => setModal(null)} onSave={saveAccount} />}
+      {modal?.type === 'account' && <AccountModal providers={data.providers} account={modal.account} busy={busy} onClose={() => setModal(null)} onSave={saveAccount} onOpenExternal={openExternal} />}
       {modal?.type === 'mail-import' && <MailImportModal providers={data.providers} busy={busy} onClose={() => setModal(null)} onImport={bulkAccounts} />}
       {modal?.type === 'totp' && <TotpModal entry={modal.entry} busy={busy} onClose={() => setModal(null)} onSave={saveTotp} />}
       {modal?.type === 'totp-import' && <TotpImportModal busy={busy} onClose={() => setModal(null)} onImport={bulkTotp} />}
+      {modal?.type === 'backup-export' && <BackupModal mode="export" busy={busy} onClose={() => setModal(null)} onSubmit={exportBackup} />}
+      {modal?.type === 'backup-import' && <BackupModal mode="import" busy={busy} onClose={() => setModal(null)} onSubmit={importBackup} />}
       <ToastStack toasts={toasts} dismiss={(id) => setToasts((items) => items.filter((item) => item.id !== id))} />
     </div>
   );

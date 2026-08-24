@@ -24,6 +24,13 @@ describe('bulk import parsers', () => {
     });
   });
 
+  it('uses the provider default authentication mode for simple imports', () => {
+    const [outlook] = parseMailboxImport('demo@outlook.com----existing-oauth-token', PROVIDERS);
+    expect(outlook).toMatchObject({ provider: 'outlook', authMode: 'oauth2' });
+    const [enterprise] = parseMailboxImport('admin@example.cn----security-password----阿里企业', PROVIDERS);
+    expect(enterprise).toMatchObject({ provider: 'aliyun-enterprise', imapHost: 'imap.qiye.aliyun.com' });
+  });
+
   it('imports TOTP lines and otpauth links', () => {
     expect(parseTotpImport('主账户----JBSWY3DPEHPK3PXP----Example')[0]).toEqual({
       label: '主账户',

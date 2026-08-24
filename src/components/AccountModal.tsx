@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Server, ShieldCheck } from 'lucide-react';
+import { ExternalLink, Eye, EyeOff, KeyRound, Server, ShieldCheck } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
 import type { MailAccountInput, ProviderId, ProviderPreset, PublicMailAccount } from '../shared/contracts';
 import { detectProvider } from '../lib/importers';
@@ -10,15 +10,17 @@ interface AccountModalProps {
   busy: boolean;
   onClose: () => void;
   onSave: (input: MailAccountInput) => Promise<void>;
+  onOpenExternal: (url: string) => Promise<void>;
 }
 
-export function AccountModal({ providers, account, busy, onClose, onSave }: AccountModalProps) {
+export function AccountModal({ providers, account, busy, onClose, onSave, onOpenExternal }: AccountModalProps) {
+  const initialProvider = providers.find((item) => item.id === (account?.provider ?? '163')) ?? providers[0];
   const [email, setEmail] = useState(account?.email ?? '');
   const [label, setLabel] = useState(account?.label ?? '');
-  const [provider, setProvider] = useState<ProviderId>(account?.provider ?? '163');
+  const [provider, setProvider] = useState<ProviderId>(initialProvider.id);
   const [username, setUsername] = useState(account?.username ?? '');
   const [credential, setCredential] = useState('');
-  const [authMode, setAuthMode] = useState(account?.authMode ?? 'password');
+  const [authMode, setAuthMode] = useState(account?.authMode ?? initialProvider.defaultAuthMode);
   const [imapHost, setImapHost] = useState(account?.imapHost ?? '');
   const [imapPort, setImapPort] = useState(account?.imapPort ?? 993);
   const [secure, setSecure] = useState(account?.secure ?? true);
@@ -31,12 +33,13 @@ export function AccountModal({ providers, account, busy, onClose, onSave }: Acco
   const handleEmailBlur = () => {
     if (account || provider === 'custom' || !email.includes('@')) return;
     const detected = detectProvider(email, providers);
-    setProvider(detected);
+    handleProvider(detected);
   };
 
   const handleProvider = (value: ProviderId) => {
     setProvider(value);
     const preset = providers.find((item) => item.id === value);
+    if (preset && !preset.authModes.includes(authMode)) setAuthMode(preset.defaultAuthMode);
     if (preset && value !== 'custom') {
       setImapHost(preset.host);
       setImapPort(preset.port);
@@ -108,18 +111,18 @@ export function AccountModal({ providers, account, busy, onClose, onSave }: Acco
           <label>
             <span>认证方式</span>
             <select value={authMode} onChange={(event) => setAuthMode(event.target.value as 'password' | 'oauth2')}>
-              <option value="password">授权码 / 应用密码</option>
-              <option value="oauth2">OAuth2 访问令牌</option>
+              {selectedProvider.authModes.includes('password') && <option value="password">授权码 / 应用专用密码</option>}
+              {selectedProvider.authModes.includes('oauth2') && <option value="oauth2">OAuth2 访问令牌</option>}
             </select>
           </label>
           <label className="full-span">
-            <span>{authMode === 'oauth2' ? 'OAuth2 访问令牌' : selectedProvider.credentialLabel}</span>
+            <span><KeyRound size={12} /> {authMode === 'oauth2' ? 'OAuth2 访问令牌（必填）' : `${selectedProvider.credentialLabel}（必填）`}</span>
             <div className="input-with-action">
               <input
                 type={showCredential ? 'text' : 'password'}
                 value={credential}
                 onChange={(event) => setCredential(event.target.value)}
-                placeholder={account ? '留空将保留现有凭据' : '仅保存在这台电脑上'}
+                placeholder={account ? '留空将保留现有凭据' : selectedProvider.credentialHint}
                 required={!account}
                 autoComplete="new-password"
               />
@@ -127,6 +130,7 @@ export function AccountModal({ providers, account, busy, onClose, onSave }: Acco
                 {showCredential ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
             </div>
+            <small className="credential-hint">{authMode === 'oauth2' ? '填写服务商签发的访问令牌；它不是邮箱密码，也不是 6 位 2FA 动态码。' : selectedProvider.credentialHint}</small>
           </label>
         </div>
 
@@ -152,7 +156,8 @@ export function AccountModal({ providers, account, busy, onClose, onSave }: Acco
 
         <div className="provider-help">
           <ShieldCheck size={17} />
-          <div><strong>{selectedProvider.name}</strong><span>{selectedProvider.help}</span></div>
+          <div><strong>{selectedProvider.name} · {provider === 'custom' ? `${imapHost}:${imapPort}` : `${selectedProvider.host}:${selectedProvider.port}`}</strong><span>{selectedProvider.help}</span></div>
+          {selectedProvider.helpUrl && <button type="button" onClick={() => void onOpenExternal(selectedProvider.helpUrl!)}>官方教程 <ExternalLink size={13} /></button>}
         </div>
 
         <footer className="modal-actions">

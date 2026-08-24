@@ -1,5 +1,5 @@
 import { CheckCircle2, CircleAlert, Clock3, FileUp, Mail, MoreVertical, Pencil, Plus, Power, RefreshCw, Server, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatRelativeTime, maskEmail } from '../lib/format';
 import type { ProviderPreset, PublicMailAccount } from '../shared/contracts';
 
@@ -25,6 +25,11 @@ function StatusBadge({ account }: { account: PublicMailAccount }) {
 
 export function AccountsPage({ accounts, providers, search, testingId, onAdd, onBulk, onEdit, onDelete, onToggle, onTest }: AccountsPageProps) {
   const [openMenu, setOpenMenu] = useState('');
+  useEffect(() => {
+    const close = () => setOpenMenu('');
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, []);
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return accounts.filter((account) => !query || [account.label, account.email, account.imapHost, providers.find((item) => item.id === account.provider)?.name ?? ''].some((value) => value.toLowerCase().includes(query)));
@@ -44,7 +49,7 @@ export function AccountsPage({ accounts, providers, search, testingId, onAdd, on
         ) : (
           <div className="account-table" role="table">
             <div className="account-table-head" role="row"><span>账户</span><span>服务商 / 服务器</span><span>状态</span><span>启用</span><span /></div>
-            {filtered.map((account) => {
+            {filtered.map((account, index) => {
               const provider = providers.find((item) => item.id === account.provider);
               return (
                 <div className={`account-table-row ${account.enabled ? '' : 'disabled'}`} role="row" key={account.id}>
@@ -54,7 +59,7 @@ export function AccountsPage({ accounts, providers, search, testingId, onAdd, on
                   <div><button className={`switch ${account.enabled ? 'on' : ''}`} type="button" role="switch" aria-checked={account.enabled} onClick={() => void onToggle(account)}><span /></button></div>
                   <div className="row-actions">
                     <button className="button tiny secondary" type="button" disabled={testingId === account.id || !account.enabled} onClick={() => void onTest(account)}>{testingId === account.id ? <RefreshCw size={14} className="spin" /> : <Power size={14} />} 测试</button>
-                    <div className="menu-wrap"><button className="icon-button" type="button" onClick={() => setOpenMenu(openMenu === account.id ? '' : account.id)} aria-label="更多操作"><MoreVertical size={18} /></button>{openMenu === account.id && <div className="context-menu"><button type="button" onClick={() => { setOpenMenu(''); onEdit(account); }}><Pencil size={15} /> 编辑</button><button className="danger" type="button" onClick={() => { setOpenMenu(''); void onDelete(account); }}><Trash2 size={15} /> 删除</button></div>}</div>
+                    <div className="menu-wrap" onClick={(event) => event.stopPropagation()}><button className="icon-button" type="button" onClick={() => setOpenMenu(openMenu === account.id ? '' : account.id)} aria-label="更多操作" aria-expanded={openMenu === account.id}><MoreVertical size={18} /></button>{openMenu === account.id && <div className={`context-menu ${index >= filtered.length - 2 ? 'open-up' : ''}`}><button type="button" onClick={() => { setOpenMenu(''); onEdit(account); }}><Pencil size={15} /> 编辑</button><button className="danger" type="button" onClick={() => { setOpenMenu(''); void onDelete(account); }}><Trash2 size={15} /> 删除</button></div>}</div>
                   </div>
                 </div>
               );

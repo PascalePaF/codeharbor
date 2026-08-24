@@ -61,6 +61,10 @@ export function normalizeProvider(value: string, email: string, providers: Provi
     alibaba: 'aliyun',
     阿里: 'aliyun',
     阿里云: 'aliyun',
+    aliyunenterprise: 'aliyun-enterprise',
+    alibabamail: 'aliyun-enterprise',
+    阿里企业: 'aliyun-enterprise',
+    阿里企业邮箱: 'aliyun-enterprise',
     outlook: 'outlook',
     hotmail: 'outlook',
     microsoft: 'outlook',
@@ -75,7 +79,8 @@ export function normalizeProvider(value: string, email: string, providers: Provi
   return aliases[normalized] ?? detectProvider(email, providers);
 }
 
-function normalizeAuthMode(value: string): AuthMode {
+function normalizeAuthMode(value: string, fallback: AuthMode = 'password'): AuthMode {
+  if (!value.trim()) return fallback;
   return /oauth|token|令牌/i.test(value) ? 'oauth2' : 'password';
 }
 
@@ -91,7 +96,7 @@ function fromMailboxRow(row: Row, providers: ProviderPreset[]): MailAccountInput
     provider,
     username: pick(row, HEADER_ALIASES.username) || email,
     credential,
-    authMode: normalizeAuthMode(pick(row, HEADER_ALIASES.authMode)),
+    authMode: normalizeAuthMode(pick(row, HEADER_ALIASES.authMode), preset?.defaultAuthMode),
     imapHost: pick(row, HEADER_ALIASES.host) || preset?.host,
     imapPort: Number.isInteger(portValue) && portValue > 0 ? portValue : preset?.port ?? 993,
     secure: booleanValue(pick(row, HEADER_ALIASES.secure), preset?.secure ?? true),
@@ -100,9 +105,11 @@ function fromMailboxRow(row: Row, providers: ProviderPreset[]): MailAccountInput
 }
 
 function hasMailboxHeader(firstLine: string): boolean {
-  const normalized = normalizeHeader(firstLine);
-  return ['email', '邮箱', 'address', 'credential', 'password', '授权码'].some((word) =>
-    normalized.includes(normalizeHeader(word)),
+  const fields = firstLine
+    .split(/----|\t|\||,|;/)
+    .map(normalizeHeader);
+  return ['email', '邮箱', '邮箱地址', 'address', 'credential', 'password', '授权码'].some((word) =>
+    fields.includes(normalizeHeader(word)),
   );
 }
 
@@ -133,7 +140,7 @@ export function parseMailboxImport(text: string, providers: ProviderPreset[]): M
           provider,
           username: email,
           credential,
-          authMode: 'password' as const,
+          authMode: preset?.defaultAuthMode ?? 'password',
           imapHost: preset?.host,
           imapPort: preset?.port,
           secure: preset?.secure ?? true,
@@ -192,6 +199,8 @@ export function parseTotpImport(text: string): TotpInput[] {
 export const MAILBOX_SAMPLE = `email,password,provider,label,username,auth_mode,imap_host,imap_port,tls
 demo@163.com,在此填写授权码,163,工作邮箱,demo@163.com,password,,,true
 demo@gmail.com,在此填写应用专用密码,gmail,Google 邮箱,demo@gmail.com,password,,,true
+demo@company.com,在此填写安全密码,aliyun-enterprise,阿里企业邮箱,demo@company.com,password,,,true
+demo@outlook.com,在此填写OAuth2访问令牌,outlook,Microsoft 邮箱,demo@outlook.com,oauth2,,,true
 custom@example.com,在此填写密码,custom,企业邮箱,custom@example.com,password,imap.example.com,993,true`;
 
 export const TOTP_SAMPLE = `label,secret,issuer,digits,period,algorithm

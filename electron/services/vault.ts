@@ -13,8 +13,13 @@ import type {
   TotpInput,
   VaultInfo,
 } from '../../src/shared/contracts';
+import type {
+  PortableMailAccount,
+  PortableTotpEntry,
+  PortableVaultBackup,
+} from '../core/backup';
 import { decodeBase32, generateTotp, normalizeBase32, parseTotpInput } from '../core/totp';
-import { resolveImapSettings } from '../core/providers';
+import { getProvider, resolveImapSettings } from '../core/providers';
 
 interface StoredMailAccount extends Omit<PublicMailAccount, 'hasCredential' | 'status'> {
   credentialCiphertext: string;
@@ -33,6 +38,13 @@ interface VaultPayload {
 
 interface DecryptedMailAccount extends Omit<StoredMailAccount, 'credentialCiphertext'> {
   credential: string;
+}
+
+export interface PortableImportSummary {
+  accountsCreated: number;
+  accountsUpdated: number;
+  totpCreated: number;
+  totpUpdated: number;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -100,7 +112,7 @@ export class VaultStore {
         schemaVersion: 1,
         accounts: parsed.accounts,
         totpEntries: parsed.totpEntries,
-        settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
+        settings: this.normalizeSettings(parsed.settings ?? {}),
       };
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
@@ -118,20 +130,25 @@ export class VaultStore {
   }
 
   async updateSettings(input: Partial<AppSettings>): Promise<AppSettings> {
-    const next = { ...this.payload.settings };
-    if (input.pollIntervalMinutes !== undefined) {
-      next.pollIntervalMinutes = Math.min(60, Math.max(1, Math.round(input.pollIntervalMinutes)));
-    }
-    if (input.scanWindowHours !== undefined) {
-      next.scanWindowHours = Math.min(168, Math.max(1, Math.round(input.scanWindowHours)));
-    }
-    if (input.maxMessagesPerAccount !== undefined) {
-      next.maxMessagesPerAccount = Math.min(100, Math.max(5, Math.round(input.maxMessagesPerAccount)));
-    }
-    if (input.autoRefresh !== undefined) next.autoRefresh = Boolean(input.autoRefresh);
+    const next = this.normalizeSettings(input, this.payload.settings);
     this.payload.settings = next;
     await this.persist();
     return this.getSettings();
+  }
+
+  private normalizeSettings(input: Partial<AppSettings>, base = DEFAULT_SETTINGS): AppSettings {
+    const next = { ...base };
+    if (typeof input.pollIntervalMinutes === 'number' && Number.isFinite(input.pollIntervalMinutes)) {
+      next.pollIntervalMinutes = Math.min(60, Math.max(1, Math.round(input.pollIntervalMinutes)));
+    }
+    if (typeof input.scanWindowHours === 'number' && Number.isFinite(input.scanWindowHours)) {
+      next.scanWindowHours = Math.min(168, Math.max(1, Math.round(input.scanWindowHours)));
+    }
+    if (typeof input.maxMessagesPerAccount === 'number' && Number.isFinite(input.maxMessagesPerAccount)) {
+      next.maxMessagesPerAccount = Math.min(100, Math.max(5, Math.round(input.maxMessagesPerAccount)));
+    }
+    if (input.autoRefresh !== undefined) next.autoRefresh = Boolean(input.autoRefresh);
+    return next;
   }
 
   listAccounts(): PublicMailAccount[] {
@@ -141,44 +158,13 @@ export class VaultStore {
   }
 
   async saveAccount(input: MailAccountInput): Promise<PublicMailAccount> {
-    const email = validateEmail(input.email);
-    const label = cleanText(input.label, 80) || email;
-    const username = cleanText(input.username, 254) || email;
-    const connection = resolveImapSettings(input.provider, input.imapHost, input.imapPort, input.secure);
-    if (!connection.host || !/^[a-z0-9.-]+$/i.test(connection.host)) {
-      throw new Error('请输入有效的 IMAP 服务器地址');
-    }
-    if (!Number.isInteger(connection.port) || connection.port < 1 || connection.port > 65535) {
-      throw new Error('IMAP 端口必须在 1–65535 之间');
-    }
-
     const existingIndex = this.payload.accounts.findIndex(
       (account) =>
         account.id === input.id ||
-        (account.email.toLowerCase() === email && account.provider === input.provider),
+        (account.email.toLowerCase() === input.email.trim().toLowerCase() && account.provider === input.provider),
     );
     const existing = existingIndex >= 0 ? this.payload.accounts[existingIndex] : undefined;
-    const credential = input.credential?.trim();
-    if (!existing && !credential) throw new Error('请输入邮箱授权码、应用密码或 OAuth2 令牌');
-
-    const now = new Date().toISOString();
-    const stored: StoredMailAccount = {
-      id: existing?.id ?? randomUUID(),
-      label,
-      email,
-      provider: input.provider,
-      username,
-      authMode: input.authMode,
-      imapHost: connection.host,
-      imapPort: connection.port,
-      secure: connection.secure,
-      enabled: input.enabled ?? existing?.enabled ?? true,
-      credentialCiphertext: credential
-        ? await this.encrypt(credential)
-        : existing?.credentialCiphertext ?? '',
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    };
+    const stored = await this.buildStoredAccount(input, existing);
 
     if (existingIndex >= 0) this.payload.accounts[existingIndex] = stored;
     else this.payload.accounts.push(stored);
@@ -254,39 +240,14 @@ export class VaultStore {
   }
 
   async saveTotp(input: TotpInput): Promise<PublicTotpEntry> {
-    const parsed = parseTotpInput(input.secret);
-    const secret = normalizeBase32(parsed.secret);
-    decodeBase32(secret);
-    const label = cleanText(input.label, 100) || cleanText(parsed.label, 100);
-    if (!label) throw new Error('请输入 2FA 项目名称');
-    const issuer = cleanText(input.issuer, 100) || cleanText(parsed.issuer, 100);
-    const digits = input.digits ?? parsed.digits ?? 6;
-    const period = input.period ?? parsed.period ?? 30;
-    const algorithm = input.algorithm ?? parsed.algorithm ?? 'SHA1';
-    if (![6, 8].includes(digits)) throw new Error('TOTP 位数仅支持 6 或 8 位');
-    if (!Number.isInteger(period) || period < 15 || period > 120) {
-      throw new Error('TOTP 周期必须在 15–120 秒之间');
-    }
-
     const existingIndex = this.payload.totpEntries.findIndex(
       (entry) =>
         entry.id === input.id ||
-        (entry.label.toLowerCase() === label.toLowerCase() &&
-          entry.issuer.toLowerCase() === issuer.toLowerCase()),
+        (entry.label.toLowerCase() === input.label.trim().toLowerCase() &&
+          entry.issuer.toLowerCase() === (input.issuer ?? '').trim().toLowerCase()),
     );
     const existing = existingIndex >= 0 ? this.payload.totpEntries[existingIndex] : undefined;
-    const now = new Date().toISOString();
-    const stored: StoredTotpEntry = {
-      id: existing?.id ?? randomUUID(),
-      label,
-      issuer,
-      digits,
-      period,
-      algorithm,
-      secretCiphertext: await this.encrypt(secret),
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    };
+    const stored = await this.buildStoredTotp(input, existing);
     if (existingIndex >= 0) this.payload.totpEntries[existingIndex] = stored;
     else this.payload.totpEntries.push(stored);
     await this.persist();
@@ -342,6 +303,95 @@ export class VaultStore {
     );
   }
 
+  async exportPortableData(appVersion: string): Promise<PortableVaultBackup> {
+    const accounts: PortableMailAccount[] = await Promise.all(
+      this.payload.accounts.map(async (account) => {
+        const { credentialCiphertext, ...fields } = account;
+        return { ...fields, credential: await this.decrypt(credentialCiphertext) };
+      }),
+    );
+    const totpEntries: PortableTotpEntry[] = await Promise.all(
+      this.payload.totpEntries.map(async (entry) => {
+        const { secretCiphertext, ...fields } = entry;
+        return { ...fields, secret: await this.decrypt(secretCiphertext) };
+      }),
+    );
+    return {
+      format: 'codeharbor-portable-vault',
+      schemaVersion: 1,
+      appVersion: cleanText(appVersion, 30),
+      exportedAt: new Date().toISOString(),
+      accounts,
+      totpEntries,
+      settings: this.getSettings(),
+    };
+  }
+
+  async importPortableData(backup: PortableVaultBackup): Promise<PortableImportSummary> {
+    if (backup.accounts.length > 500 || backup.totpEntries.length > 500) {
+      throw new Error('备份项目数量超过 500 项限制');
+    }
+    const next = structuredClone(this.payload);
+    const summary: PortableImportSummary = {
+      accountsCreated: 0,
+      accountsUpdated: 0,
+      totpCreated: 0,
+      totpUpdated: 0,
+    };
+
+    for (const source of backup.accounts) {
+      const existingIndex = next.accounts.findIndex(
+        (account) =>
+          account.id === source.id ||
+          (account.email.toLowerCase() === String(source.email).trim().toLowerCase() &&
+            account.provider === source.provider),
+      );
+      const existing = existingIndex >= 0 ? next.accounts[existingIndex] : undefined;
+      const stored = await this.buildStoredAccount(source, existing);
+      stored.createdAt = this.validTimestamp(source.createdAt) ?? stored.createdAt;
+      stored.updatedAt = this.validTimestamp(source.updatedAt) ?? stored.updatedAt;
+      if (existingIndex >= 0) {
+        next.accounts[existingIndex] = stored;
+        summary.accountsUpdated += 1;
+      } else {
+        next.accounts.push(stored);
+        summary.accountsCreated += 1;
+      }
+    }
+
+    for (const source of backup.totpEntries) {
+      const existingIndex = next.totpEntries.findIndex(
+        (entry) =>
+          entry.id === source.id ||
+          (entry.label.toLowerCase() === String(source.label).trim().toLowerCase() &&
+            entry.issuer.toLowerCase() === String(source.issuer ?? '').trim().toLowerCase()),
+      );
+      const existing = existingIndex >= 0 ? next.totpEntries[existingIndex] : undefined;
+      const stored = await this.buildStoredTotp(source, existing);
+      stored.createdAt = this.validTimestamp(source.createdAt) ?? stored.createdAt;
+      stored.updatedAt = this.validTimestamp(source.updatedAt) ?? stored.updatedAt;
+      if (existingIndex >= 0) {
+        next.totpEntries[existingIndex] = stored;
+        summary.totpUpdated += 1;
+      } else {
+        next.totpEntries.push(stored);
+        summary.totpCreated += 1;
+      }
+    }
+
+    next.settings = this.normalizeSettings(backup.settings);
+    const previous = this.payload;
+    this.payload = next;
+    try {
+      await this.persist();
+      this.statuses.clear();
+      return summary;
+    } catch (error) {
+      this.payload = previous;
+      throw error;
+    }
+  }
+
   async getVaultInfo(): Promise<VaultInfo> {
     const asyncAvailable =
       typeof safeStorage.isAsyncEncryptionAvailable === 'function'
@@ -354,6 +404,87 @@ export class VaultStore {
       backend = safeStorage.getSelectedStorageBackend();
     }
     return { encryptionAvailable: asyncAvailable, backend, storagePath: this.storagePath };
+  }
+
+  private async buildStoredAccount(
+    input: MailAccountInput,
+    existing?: StoredMailAccount,
+  ): Promise<StoredMailAccount> {
+    const provider = getProvider(input.provider);
+    if (provider.id !== input.provider) throw new Error('邮箱服务商不受支持');
+    if (!provider.authModes.includes(input.authMode)) {
+      throw new Error(`${provider.name} 不支持所选认证方式`);
+    }
+    const email = validateEmail(input.email);
+    const label = cleanText(input.label, 80) || email;
+    const username = cleanText(input.username, 254) || email;
+    const connection = resolveImapSettings(input.provider, input.imapHost, input.imapPort, input.secure);
+    if (!connection.host || !/^[a-z0-9.-]+$/i.test(connection.host)) {
+      throw new Error('请输入有效的 IMAP 服务器地址');
+    }
+    if (!Number.isInteger(connection.port) || connection.port < 1 || connection.port > 65535) {
+      throw new Error('IMAP 端口必须在 1–65535 之间');
+    }
+    const rawCredential = typeof input.credential === 'string' ? input.credential.trim() : '';
+    const credential = input.provider === 'gmail' && input.authMode === 'password'
+      ? rawCredential.replace(/\s+/g, '')
+      : rawCredential;
+    if (!existing && !credential) throw new Error(`请输入${provider.credentialLabel}`);
+    const now = new Date().toISOString();
+    return {
+      id: existing?.id ?? input.id ?? randomUUID(),
+      label,
+      email,
+      provider: input.provider,
+      username,
+      authMode: input.authMode,
+      imapHost: connection.host,
+      imapPort: connection.port,
+      secure: connection.secure,
+      enabled: input.enabled ?? existing?.enabled ?? true,
+      credentialCiphertext: credential
+        ? await this.encrypt(credential)
+        : existing?.credentialCiphertext ?? '',
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+  }
+
+  private async buildStoredTotp(
+    input: TotpInput,
+    existing?: StoredTotpEntry,
+  ): Promise<StoredTotpEntry> {
+    const parsed = parseTotpInput(input.secret);
+    const secret = normalizeBase32(parsed.secret);
+    decodeBase32(secret);
+    const label = cleanText(input.label, 100) || cleanText(parsed.label, 100);
+    if (!label) throw new Error('请输入 2FA 项目名称');
+    const issuer = cleanText(input.issuer, 100) || cleanText(parsed.issuer, 100);
+    const digits = input.digits ?? parsed.digits ?? 6;
+    const period = input.period ?? parsed.period ?? 30;
+    const algorithm = input.algorithm ?? parsed.algorithm ?? 'SHA1';
+    if (![6, 8].includes(digits)) throw new Error('TOTP 位数仅支持 6 或 8 位');
+    if (!Number.isInteger(period) || period < 15 || period > 120) {
+      throw new Error('TOTP 周期必须在 15–120 秒之间');
+    }
+    const now = new Date().toISOString();
+    return {
+      id: existing?.id ?? input.id ?? randomUUID(),
+      label,
+      issuer,
+      digits,
+      period,
+      algorithm,
+      secretCiphertext: await this.encrypt(secret),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+  }
+
+  private validTimestamp(value: unknown): string | undefined {
+    if (typeof value !== 'string') return undefined;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
   }
 
   private async ensureEncryption(): Promise<void> {

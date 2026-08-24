@@ -7,6 +7,13 @@ import type {
 import { extractVerificationCodes, makePreview, stripHtml } from '../core/code-extractor';
 import type { VaultStore } from './vault';
 
+interface ConnectionAccountHint {
+  provider: string;
+  authMode: 'password' | 'oauth2';
+  imapHost: string;
+  imapPort: number;
+}
+
 function formatAddress(address: { name?: string; address?: string } | undefined): string {
   if (!address) return '未知发件人';
   if (address.name && address.address) return `${address.name} <${address.address}>`;
@@ -27,17 +34,37 @@ function formatParsedAddress(address: ParsedAddress | undefined): string {
   return formatAddress(address);
 }
 
-function friendlyConnectionError(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error);
-  const message = raw.replace(/[\r\n]+/g, ' ').slice(0, 220);
+function errorDetails(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const extended = error as Error & { code?: string; responseText?: string; reason?: string; _err?: Error };
+  return [extended.code, extended.message, extended.responseText, extended.reason, extended._err?.message]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+export function friendlyConnectionError(error: unknown, account?: ConnectionAccountHint): string {
+  const message = errorDetails(error).replace(/[\r\n]+/g, ' ').slice(0, 260);
   if (/auth|login|credential|password|invalid user|authenticationfailed/i.test(message)) {
+    if (account?.provider === 'gmail') {
+      return 'Gmail 认证失败：请填写 16 位“应用专用密码”，不要填写 Google 登录密码或 6 位 2FA 动态码';
+    }
+    if (account?.provider === 'outlook') {
+      return 'Microsoft 认证失败：Outlook/365 要求 OAuth2 现代身份验证，请检查访问令牌是否有效且包含 IMAP 权限';
+    }
+    if (['163', '126', 'qq', 'aliyun-enterprise'].includes(account?.provider ?? '')) {
+      return '认证失败：该服务商通常要求客户端授权码/安全密码，请勿填写网页登录密码或短信验证码';
+    }
     return '认证失败，请检查邮箱地址、授权码或 OAuth2 令牌';
   }
   if (/imap.*disabled|not enabled/i.test(message)) return '该邮箱尚未开启 IMAP 服务';
   if (/too many|maximum.*connection/i.test(message)) return '邮箱服务器连接数过多，请稍后重试';
   if (/ENOTFOUND|getaddrinfo/i.test(message)) return '无法解析 IMAP 服务器地址';
   if (/ECONNREFUSED/i.test(message)) return 'IMAP 服务器拒绝连接';
-  if (/timeout|ETIMEDOUT/i.test(message)) return '连接超时，请检查网络或服务器设置';
+  if (/timeout|ETIMEDOUT|ETIMEOUT|CONNECT_TIMEOUT/i.test(message)) {
+    const endpoint = account ? `${account.imapHost}:${account.imapPort}` : 'IMAP 服务器';
+    return `连接 ${endpoint} 超时：请检查网络、代理或防火墙是否允许 TCP 993；也可能是服务器响应较慢`;
+  }
+  if (/ECONNRESET|EPIPE|socket.*closed/i.test(message)) return '连接被服务器中断，请稍后重试并确认 IMAP 已开启';
   if (/certificate|self signed|unable to verify/i.test(message)) return 'IMAP 服务器证书校验失败';
   return `连接失败：${message || '未知错误'}`;
 }
@@ -47,18 +74,21 @@ export class MailboxService {
 
   async testAccount(accountId: string): Promise<AccountScanStatus> {
     const checkedAt = new Date().toISOString();
+    const startedAt = Date.now();
     this.vault.setAccountStatus(accountId, { state: 'checking', message: '正在连接…' });
     let client: ImapFlow | undefined;
+    let account: Awaited<ReturnType<VaultStore['getDecryptedAccount']>> | undefined;
+    let emittedError: Error | undefined;
     try {
-      const account = await this.vault.getDecryptedAccount(accountId);
-      client = this.createClient(account);
+      account = await this.vault.getDecryptedAccount(accountId);
+      client = this.createClient(account, (error) => { emittedError = error; });
       await client.connect();
       const lock = await client.getMailboxLock('INBOX', { readOnly: true });
       lock.release();
       const status: AccountScanStatus = {
         accountId,
         state: 'ok',
-        message: '连接成功',
+        message: `连接成功（${Date.now() - startedAt} ms）`,
         checkedAt,
         messageCount: 0,
       };
@@ -69,11 +99,11 @@ export class MailboxService {
       });
       return status;
     } catch (error) {
-      const message = friendlyConnectionError(error);
+      const message = friendlyConnectionError(emittedError ?? error, account);
       this.vault.setAccountStatus(accountId, { state: 'error', message, checkedAt });
       return { accountId, state: 'error', message, checkedAt, messageCount: 0 };
     } finally {
-      if (client?.usable) await client.logout().catch(() => undefined);
+      client?.close();
     }
   }
 
@@ -106,15 +136,17 @@ export class MailboxService {
     const checkedAt = new Date().toISOString();
     this.vault.setAccountStatus(accountId, { state: 'checking', message: '正在扫描…' });
     let client: ImapFlow | undefined;
+    let account: Awaited<ReturnType<VaultStore['getDecryptedAccount']>> | undefined;
+    let emittedError: Error | undefined;
     try {
-      const account = await this.vault.getDecryptedAccount(accountId);
+      account = await this.vault.getDecryptedAccount(accountId);
       if (!account.enabled) {
         return {
           status: { accountId, state: 'skipped', message: '账户已停用', checkedAt, messageCount: 0 },
           messages: [],
         };
       }
-      client = this.createClient(account);
+      client = this.createClient(account, (error) => { emittedError = error; });
       await client.connect();
       const lock = await client.getMailboxLock('INBOX', { readOnly: true });
       const verificationMessages: VerificationMessage[] = [];
@@ -185,35 +217,48 @@ export class MailboxService {
         messages: verificationMessages,
       };
     } catch (error) {
-      const message = friendlyConnectionError(error);
+      const message = friendlyConnectionError(emittedError ?? error, account);
       this.vault.setAccountStatus(accountId, { state: 'error', message, checkedAt });
       return {
         status: { accountId, state: 'error', message, checkedAt, messageCount: 0 },
         messages: [],
       };
     } finally {
-      if (client?.usable) await client.logout().catch(() => undefined);
+      client?.close();
     }
   }
 
-  private createClient(account: Awaited<ReturnType<VaultStore['getDecryptedAccount']>>): ImapFlow {
+  private createClient(
+    account: Awaited<ReturnType<VaultStore['getDecryptedAccount']>>,
+    onError: (error: Error) => void,
+  ): ImapFlow {
     const auth =
       account.authMode === 'oauth2'
         ? { user: account.username, accessToken: account.credential }
         : { user: account.username, pass: account.credential };
-    return new ImapFlow({
+    const client = new ImapFlow({
       host: account.imapHost,
       port: account.imapPort,
       secure: account.secure,
       auth,
       logger: false,
-      connectionTimeout: 15_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 30_000,
+      disableAutoIdle: true,
+      connectionTimeout: 25_000,
+      greetingTimeout: 15_000,
+      socketTimeout: 45_000,
+      clientInfo: {
+        name: 'CodeHarbor',
+        version: '1.0.1',
+        vendor: 'CodeHarbor',
+      },
       tls: {
         minVersion: 'TLSv1.2',
         rejectUnauthorized: true,
       },
     });
+    // ImapFlow reports transport failures through EventEmitter after connect(). Without a
+    // listener, Node treats an ordinary network timeout as an uncaught main-process exception.
+    client.on('error', onError);
+    return client;
   }
 }

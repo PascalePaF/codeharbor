@@ -4,6 +4,7 @@ export type ProviderId =
   | 'qq'
   | 'gmail'
   | 'aliyun'
+  | 'aliyun-enterprise'
   | 'outlook'
   | 'mailcom'
   | 'custom';
@@ -20,7 +21,12 @@ export interface ProviderPreset {
   secure: boolean;
   domains: string[];
   credentialLabel: string;
+  credentialHint: string;
   help: string;
+  authModes: AuthMode[];
+  defaultAuthMode: AuthMode;
+  setupSteps: string[];
+  helpUrl?: string;
   accent: string;
 }
 
@@ -133,6 +139,22 @@ export interface BulkSaveResult {
   failed: Array<{ row: number; identifier: string; error: string }>;
 }
 
+export interface BackupExportResult {
+  canceled: boolean;
+  fileName?: string;
+  accountCount: number;
+  totpCount: number;
+}
+
+export interface BackupImportResult {
+  canceled: boolean;
+  fileName?: string;
+  accountsCreated: number;
+  accountsUpdated: number;
+  totpCreated: number;
+  totpUpdated: number;
+}
+
 export interface AppBootstrap {
   version: string;
   accounts: PublicMailAccount[];
@@ -162,6 +184,10 @@ export interface CodeHarborBridge {
   };
   settings: {
     update(input: Partial<AppSettings>): Promise<AppSettings>;
+  };
+  backup: {
+    exportAll(password: string): Promise<BackupExportResult>;
+    importAll(password: string): Promise<BackupImportResult>;
   };
   system: {
     copy(text: string): Promise<void>;
