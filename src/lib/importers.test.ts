@@ -31,6 +31,21 @@ describe('bulk import parsers', () => {
     expect(enterprise).toMatchObject({ provider: 'aliyun-enterprise', imapHost: 'imap.qiye.aliyun.com' });
   });
 
+  it('imports qlerky-style local JSON without copying its storage model', () => {
+    const rows = parseMailboxImport(JSON.stringify([
+      { email: 'one@126.com', password: 'local-auth', imap_host: 'imap.126.com', imap_port: 993, label: 'One' },
+    ]), PROVIDERS);
+    expect(rows[0]).toMatchObject({
+      email: 'one@126.com',
+      credential: 'local-auth',
+      provider: '126',
+      label: 'One',
+    });
+    expect(parseTotpImport(JSON.stringify([
+      { label: 'Chat', issuer: 'Example', secret: 'JBSWY3DPEHPK3PXP' },
+    ]))[0]).toMatchObject({ label: 'Chat', issuer: 'Example', secret: 'JBSWY3DPEHPK3PXP' });
+  });
+
   it('imports TOTP lines and otpauth links', () => {
     expect(parseTotpImport('主账户----JBSWY3DPEHPK3PXP----Example')[0]).toEqual({
       label: '主账户',

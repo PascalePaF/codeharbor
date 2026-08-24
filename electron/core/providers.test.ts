@@ -8,6 +8,7 @@ describe('provider presets', () => {
     expect(detectProvider('hello@gmail.com')).toBe('gmail');
     expect(detectProvider('hello@outlook.com')).toBe('outlook');
     expect(detectProvider('hello@alibaba-inc.com')).toBe('aliyun-enterprise');
+    expect(detectProvider('hello@mail.team.alibaba-inc.com')).toBe('aliyun-enterprise');
     expect(detectProvider('hello@example.org')).toBe('custom');
   });
 

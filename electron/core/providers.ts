@@ -200,7 +200,11 @@ export function getProvider(id: ProviderId): ProviderPreset {
 
 export function detectProvider(email: string): ProviderId {
   const domain = email.trim().toLowerCase().split('@').pop() ?? '';
-  const found = PROVIDERS.find((provider) => provider.domains.includes(domain));
+  const found = PROVIDERS.find((provider) =>
+    provider.domains.some((knownDomain) =>
+      domain === knownDomain || domain.endsWith(`.${knownDomain}`),
+    ),
+  );
   return found?.id ?? 'custom';
 }
 

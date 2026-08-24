@@ -28,11 +28,11 @@ export function TotpImportModal({ busy, onClose, onImport }: TotpImportModalProp
   }, [text]);
 
   return (
-    <Modal title="批量导入 2FA" description="可逐行粘贴 otpauth 链接，或导入 CSV / TXT。" onClose={onClose} wide>
+    <Modal title="批量导入 2FA" description="可逐行粘贴 otpauth 链接，或导入 CSV / TXT / JSON。" onClose={onClose} wide>
       <div className="import-toolbar">
         <button className="button secondary" type="button" onClick={() => fileRef.current?.click()}><Upload size={16} /> 选择文件</button>
         <button className="button ghost" type="button" onClick={downloadSample}><Download size={16} /> 下载模板</button>
-        <input ref={fileRef} hidden type="file" accept=".csv,.txt,text/csv,text/plain" onChange={(event) => { const file = event.target.files?.[0]; if (file) void file.text().then(setText); }} />
+        <input ref={fileRef} hidden type="file" accept=".csv,.txt,.json,text/csv,text/plain,application/json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void file.text().then(setText); }} />
       </div>
       <label className="import-area">
         <span>每行 <code>名称----Base32 密钥----发行方</code>，或每行一个 otpauth:// 链接</span>

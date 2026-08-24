@@ -39,7 +39,11 @@ function booleanValue(value: string, fallback = true): boolean {
 
 export function detectProvider(email: string, providers: ProviderPreset[]): ProviderId {
   const domain = email.trim().toLowerCase().split('@').pop() ?? '';
-  return providers.find((provider) => provider.domains.includes(domain))?.id ?? 'custom';
+  return providers.find((provider) =>
+    provider.domains.some((knownDomain) =>
+      domain === knownDomain || domain.endsWith(`.${knownDomain}`),
+    ),
+  )?.id ?? 'custom';
 }
 
 export function normalizeProvider(value: string, email: string, providers: ProviderPreset[]): ProviderId {
@@ -120,9 +124,26 @@ function splitSimpleLine(line: string): string[] {
   return [line.trim()];
 }
 
+function parseJsonRows(text: string, collectionKey?: string): Row[] | undefined {
+  if (!text.startsWith('[') && !text.startsWith('{')) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('JSON 文件格式不正确');
+  }
+  const value = collectionKey && parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? (parsed as Row)[collectionKey]
+    : parsed;
+  if (!Array.isArray(value)) throw new Error('JSON 中没有可导入的项目数组');
+  return value.filter((item): item is Row => Boolean(item) && typeof item === 'object' && !Array.isArray(item));
+}
+
 export function parseMailboxImport(text: string, providers: ProviderPreset[]): MailAccountInput[] {
   const trimmed = text.trim();
   if (!trimmed) return [];
+  const jsonRows = parseJsonRows(trimmed, 'accounts');
+  if (jsonRows) return jsonRows.map((row) => fromMailboxRow(row, providers));
   const firstLine = trimmed.split(/\r?\n/, 1)[0];
 
   if (!hasMailboxHeader(firstLine)) {
@@ -166,6 +187,17 @@ function normalizeAlgorithm(value: string): TotpAlgorithm {
 export function parseTotpImport(text: string): TotpInput[] {
   const trimmed = text.trim();
   if (!trimmed) return [];
+  const jsonRows = parseJsonRows(trimmed, 'totpEntries');
+  if (jsonRows) {
+    return jsonRows.map((row) => ({
+      label: pick(row, ['label', 'name', '名称', '项目']),
+      issuer: pick(row, ['issuer', '服务', '发行方']),
+      secret: pick(row, ['secret', '密钥', 'key', 'otpauth']),
+      digits: Number(pick(row, ['digits', '位数'])) === 8 ? 8 : 6,
+      period: Number(pick(row, ['period', '周期'])) || 30,
+      algorithm: normalizeAlgorithm(pick(row, ['algorithm', '算法'])),
+    }));
+  }
   const lines = trimmed.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (lines.every((line) => line.toLowerCase().startsWith('otpauth://'))) {
     return lines.map((secret) => ({ label: '', secret }));

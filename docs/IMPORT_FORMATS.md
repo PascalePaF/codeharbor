@@ -35,6 +35,22 @@ custom@example.com,在此填写密码,custom,企业邮箱,custom@example.com,pas
 
 中文表头也可使用：`邮箱`、`授权码`、`服务商`、`名称`、`用户名`、`认证方式`、`服务器`、`端口`、`加密`。
 
+也可导入本地工具常见的 JSON 数组：
+
+```json
+[
+  {
+    "email": "demo@126.com",
+    "password": "客户端授权码",
+    "imap_host": "imap.126.com",
+    "imap_port": 993,
+    "label": "备用邮箱"
+  }
+]
+```
+
+JSON 只是迁移输入。导入后会转换为 CodeHarbor 自己的数据模型，并按当前电脑的系统安全存储重新加密。
+
 同一“邮箱 + 服务商”重复导入时会更新现有账户。单次最多 500 行；错误行会在导入结果中单独列出，不影响其他有效行。
 
 ## 跨电脑完整迁移
@@ -71,6 +87,8 @@ label,secret,issuer,digits,period,algorithm
 ```
 
 `digits` 支持 6 或 8；`period` 支持 15–120 秒；`algorithm` 支持 SHA1、SHA256、SHA512。
+
+还可导入由 `label`、`secret`、`issuer` 组成的 JSON 数组；缺省值为 6 位、30 秒、SHA1。
 
 ## 安全提示
 

@@ -37,11 +37,11 @@ export function MailImportModal({ providers, busy, onClose, onImport }: MailImpo
   };
 
   return (
-    <Modal title="批量导入邮箱" description="支持 CSV、TXT，最多一次导入 500 个账户。" onClose={onClose} wide>
+    <Modal title="批量导入邮箱" description="支持 CSV、TXT、JSON，最多一次导入 500 个账户。" onClose={onClose} wide>
       <div className="import-toolbar">
         <button className="button secondary" type="button" onClick={() => fileRef.current?.click()}><Upload size={16} /> 选择文件</button>
         <button className="button ghost" type="button" onClick={() => downloadText('codeharbor-mailbox-sample.csv', MAILBOX_SAMPLE)}><Download size={16} /> 下载模板</button>
-        <input ref={fileRef} hidden type="file" accept=".csv,.txt,text/csv,text/plain" onChange={(event) => void readFile(event.target.files?.[0])} />
+        <input ref={fileRef} hidden type="file" accept=".csv,.txt,.json,text/csv,text/plain,application/json" onChange={(event) => void readFile(event.target.files?.[0])} />
       </div>
       <label className="import-area">
         <span>粘贴 CSV，或每行使用 <code>邮箱----授权码</code></span>
