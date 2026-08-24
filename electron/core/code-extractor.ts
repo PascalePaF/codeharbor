@@ -1,0 +1,98 @@
+const KEYWORDS = [
+  'verification code',
+  'security code',
+  'login code',
+  'sign-in code',
+  'one-time code',
+  'one time password',
+  'passcode',
+  'otp',
+  '验证码',
+  '校验码',
+  '动态码',
+  '登录码',
+  '安全码',
+  '認証コード',
+  '確認コード',
+  '인증 코드',
+];
+
+const KEYWORD_PATTERN = new RegExp(KEYWORDS.join('|'), 'i');
+
+function normalizeCandidate(value: string): string {
+  return value.replace(/[\s-]/g, '').toUpperCase();
+}
+
+function looksLikeYear(value: string): boolean {
+  if (!/^\d{4}$/.test(value)) return false;
+  const year = Number(value);
+  return year >= 1900 && year <= 2099;
+}
+
+function surroundingText(input: string, start: number, length: number, radius = 48): string {
+  return input.slice(Math.max(0, start - radius), Math.min(input.length, start + length + radius));
+}
+
+export function stripHtml(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#39;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function extractVerificationCodes(subject: string, body: string): string[] {
+  const haystacks = [
+    { text: subject ?? '', subject: true },
+    { text: body ?? '', subject: false },
+  ];
+  const scored = new Map<string, number>();
+
+  for (const { text, subject: isSubject } of haystacks) {
+    const patterns = [
+      /(?<!\d)(\d(?:[\s-]?\d){3,7})(?!\d)/g,
+      /(?<![A-Z0-9])([A-Z0-9]{6,10})(?![A-Z0-9])/gi,
+    ];
+
+    for (const pattern of patterns) {
+      for (const match of text.matchAll(pattern)) {
+        const raw = match[1] ?? match[0];
+        const code = normalizeCandidate(raw);
+        if (code.length < 4 || code.length > 10 || looksLikeYear(code)) continue;
+        const isAlphanumeric = /[A-Z]/.test(code) && /\d/.test(code);
+        const isNumeric = /^\d+$/.test(code);
+        if (!isNumeric && !isAlphanumeric) continue;
+
+        const context = surroundingText(text, match.index ?? 0, raw.length);
+        const nearKeyword = KEYWORD_PATTERN.test(context);
+        if (isAlphanumeric && !nearKeyword) continue;
+
+        let score = 0;
+        if (isSubject) score += 6;
+        if (nearKeyword) score += 8;
+        if (code.length === 6) score += 5;
+        if (code.length === 8) score += 3;
+        if (isNumeric) score += 2;
+        if (/^(\d)\1+$/.test(code)) score -= 4;
+        scored.set(code, Math.max(scored.get(code) ?? Number.NEGATIVE_INFINITY, score));
+      }
+    }
+  }
+
+  return [...scored.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([code]) => code);
+}
+
+export function makePreview(text: string, maxLength = 150): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  return clean.length > maxLength ? `${clean.slice(0, maxLength - 1)}…` : clean;
+}

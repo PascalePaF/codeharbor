@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Windows artifacts
+        run: npm run dist
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $artifacts = Get-ChildItem -LiteralPath release -Filter *.exe | ForEach-Object { $_.FullName }
+          if (-not $artifacts) { throw "No Windows artifacts were generated" }
+          $checksumLines = Get-ChildItem -LiteralPath release -Filter *.exe | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash
+            "$hash  $($_.Name)"
+          }
+          $checksumLines | Set-Content -LiteralPath release/SHA256SUMS.txt -Encoding utf8
+          gh release create $env:GITHUB_REF_NAME $artifacts release/SHA256SUMS.txt --verify-tag --generate-notes --title "CodeHarbor $env:GITHUB_REF_NAME"

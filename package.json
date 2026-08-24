@@ -1,0 +1,89 @@
+{
+  "name": "codeharbor",
+  "productName": "CodeHarbor 验证码港",
+  "version": "1.0.0",
+  "description": "本地优先的多邮箱验证码与 TOTP 管理桌面应用",
+  "main": "dist-electron/electron/main.js",
+  "private": true,
+  "author": "CodeHarbor Contributors",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "vite --host 127.0.0.1",
+    "dev:electron": "tsc -p tsconfig.electron.json && concurrently -k \"tsc -p tsconfig.electron.json --watch --preserveWatchOutput\" \"wait-on http://127.0.0.1:5173 dist-electron/electron/main.js && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "npm run typecheck && npm run test && npm run build:app",
+    "smoke": "npm run build:app && cross-env CODEHARBOR_SMOKE_TEST=1 CODEHARBOR_SMOKE_OUTPUT=test-results/smoke.png electron .",
+    "build:renderer": "vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build:app": "npm run build:renderer && npm run build:electron",
+    "dist": "npm run verify && electron-builder --win nsis portable",
+    "pack": "npm run verify && electron-builder --dir",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "imapflow": "1.7.2",
+    "lucide-react": "1.33.0",
+    "papaparse": "5.6.0",
+    "postal-mime": "3.0.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0",
+    "@types/papaparse": "5.5.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.0",
+    "concurrently": "10.0.5",
+    "cross-env": "10.1.0",
+    "electron": "43.4.1",
+    "electron-builder": "26.15.3",
+    "typescript": "7.0.2",
+    "vite": "8.2.2",
+    "vitest": "4.1.11",
+    "wait-on": "9.1.0"
+  },
+  "build": {
+    "appId": "com.codeharbor.desktop",
+    "productName": "CodeHarbor 验证码港",
+    "copyright": "Copyright © 2026 CodeHarbor Contributors",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "CodeHarbor-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CodeHarbor 验证码港",
+      "artifactName": "CodeHarbor-Setup-${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "CodeHarbor-Portable-${version}-${arch}.${ext}"
+    }
+  }
+}

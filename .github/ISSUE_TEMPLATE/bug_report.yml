@@ -1,0 +1,48 @@
+name: Bug report
+description: 报告可复现的问题（请勿提交任何真实凭据）
+title: "[Bug]: "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: 请先移除邮箱地址、密码、授权码、OAuth2 令牌、TOTP 密钥和验证码正文。
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      placeholder: V1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 功能区域
+      options:
+        - 邮箱账户 / IMAP
+        - 验证码提取
+        - 批量导入
+        - 2FA / TOTP
+        - 加密保险库
+        - 安装或构建
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果与实际结果
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 隐私确认
+      options:
+        - label: 我已确认内容不包含任何真实凭据或验证码。
+          required: true

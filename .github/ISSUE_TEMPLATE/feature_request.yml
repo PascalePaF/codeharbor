@@ -1,0 +1,22 @@
+name: Feature request
+description: 提议新服务商或改进
+title: "[Feature]: "
+labels: [enhancement, triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: 安全与兼容性影响
+      description: 是否会引入新凭据类型、写邮件能力或保险库变更？
