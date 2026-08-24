@@ -1,6 +1,16 @@
-# CodeHarbor 验证码港
+<p align="center">
+  <img src="build/icon.png" width="96" alt="CodeHarbor 图标" />
+</p>
 
-CodeHarbor 是一款本地优先的 Windows 桌面应用，用来统一读取多个邮箱中的验证码邮件，并离线生成 TOTP 2FA 动态码。
+<h1 align="center">CodeHarbor 验证码港</h1>
+
+<p align="center">
+  本地优先的 Windows 多邮箱验证码收件箱与 TOTP 2FA 管理器
+</p>
+
+<p align="center">
+  <code>V1.0.0</code> · <code>Windows x64</code> · <code>只读 IMAP</code> · <code>本机加密</code> · <code>离线 TOTP</code>
+</p>
 
 ![CodeHarbor 验证码收件箱](docs/screenshots/overview.png)
 
