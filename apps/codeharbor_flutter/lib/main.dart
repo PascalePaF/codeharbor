@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import 'app_controller.dart';
 import 'ui/home_screen.dart';
@@ -8,6 +9,15 @@ Future<void> main() async {
   final controller = AppController();
   await controller.initialize();
   runApp(CodeHarborApp(controller: controller));
+  if (kDebugMode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      debugPrint(
+        controller.startupError == null
+            ? 'CODEHARBOR_SMOKE_READY'
+            : 'CODEHARBOR_SMOKE_STARTUP_FAILED',
+      );
+    });
+  }
 }
 
 class CodeHarborApp extends StatelessWidget {

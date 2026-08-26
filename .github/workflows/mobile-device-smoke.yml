@@ -73,8 +73,35 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - name: Run macOS integration smoke test
+      - name: Build macOS app for hosted launch test
         working-directory: ${{ env.APP_DIRECTORY }}
-        # --ci makes Flutter generate temporary entitlements with sandboxing
-        # disabled, avoiding the unsigned-app approval dialog on hosted macOS.
-        run: flutter --ci test integration_test/app_smoke_test.dart -d macos
+        run: flutter --ci build macos --debug
+      - name: Launch app and wait for encrypted-vault ready marker
+        working-directory: ${{ env.APP_DIRECTORY }}
+        shell: bash
+        run: |
+          APP_BINARY="build/macos/Build/Products/Debug/CodeHarbor.app/Contents/MacOS/CodeHarbor"
+          LAUNCH_LOG="$RUNNER_TEMP/codeharbor-macos-launch.log"
+          test -x "$APP_BINARY"
+          "$APP_BINARY" >"$LAUNCH_LOG" 2>&1 &
+          APP_PID=$!
+          cleanup() {
+            kill "$APP_PID" 2>/dev/null || true
+            wait "$APP_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          for attempt in {1..30}; do
+            if grep -q "CODEHARBOR_SMOKE_READY" "$LAUNCH_LOG"; then
+              echo "macOS app initialized its encrypted vault and rendered the first frame."
+              exit 0
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              echo "macOS app exited before becoming ready."
+              cat "$LAUNCH_LOG"
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "macOS app stayed alive but did not report a ready first frame."
+          cat "$LAUNCH_LOG"
+          exit 1
