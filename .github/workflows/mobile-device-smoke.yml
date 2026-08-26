@@ -61,7 +61,10 @@ jobs:
 
   macos-app:
     name: macOS app smoke test
-    runs-on: macos-15
+    # The standard macos-15 label is an arm64 virtual machine whose hosted
+    # graphics session can terminate Flutter desktop apps before VM attach.
+    # Intel runners expose the Metal-capable GUI session needed by this test.
+    runs-on: macos-15-intel
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
