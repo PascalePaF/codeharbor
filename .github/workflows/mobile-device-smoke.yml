@@ -83,6 +83,8 @@ jobs:
           APP_BINARY="build/macos/Build/Products/Debug/CodeHarbor.app/Contents/MacOS/CodeHarbor"
           LAUNCH_LOG="$RUNNER_TEMP/codeharbor-macos-launch.log"
           test -x "$APP_BINARY"
+          export FLUTTER_ENGINE_SWITCHES=1
+          export FLUTTER_ENGINE_SWITCH_1="enable-software-rendering=true"
           "$APP_BINARY" >"$LAUNCH_LOG" 2>&1 &
           APP_PID=$!
           cleanup() {
