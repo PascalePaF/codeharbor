@@ -73,14 +73,14 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - name: Build macOS app for hosted launch test
+      - name: Build macOS release app for hosted launch test
         working-directory: ${{ env.APP_DIRECTORY }}
-        run: flutter --ci build macos --debug
+        run: flutter --ci build macos --release --dart-define=CODEHARBOR_SMOKE=true
       - name: Launch app and wait for encrypted-vault ready marker
         working-directory: ${{ env.APP_DIRECTORY }}
         shell: bash
         run: |
-          APP_BINARY="build/macos/Build/Products/Debug/CodeHarbor.app/Contents/MacOS/CodeHarbor"
+          APP_BINARY="build/macos/Build/Products/Release/CodeHarbor.app/Contents/MacOS/CodeHarbor"
           LAUNCH_LOG="$RUNNER_TEMP/codeharbor-macos-launch.log"
           test -x "$APP_BINARY"
           export FLUTTER_ENGINE_SWITCHES=1
