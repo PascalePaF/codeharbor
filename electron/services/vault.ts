@@ -52,6 +52,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   scanWindowHours: 24,
   maxMessagesPerAccount: 30,
   autoRefresh: false,
+  theme: 'dark',
 };
 
 const DEFAULT_VAULT: VaultPayload = {
@@ -148,6 +149,7 @@ export class VaultStore {
       next.maxMessagesPerAccount = Math.min(100, Math.max(5, Math.round(input.maxMessagesPerAccount)));
     }
     if (input.autoRefresh !== undefined) next.autoRefresh = Boolean(input.autoRefresh);
+    if (input.theme === 'dark' || input.theme === 'light') next.theme = input.theme;
     return next;
   }
 

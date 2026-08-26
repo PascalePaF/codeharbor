@@ -4,7 +4,7 @@ import { decryptPortableBackup, encryptPortableBackup, type PortableVaultBackup 
 const sample: PortableVaultBackup = {
   format: 'codeharbor-portable-vault',
   schemaVersion: 1,
-  appVersion: '1.0.1',
+  appVersion: '1.0.2',
   exportedAt: '2026-08-24T00:00:00.000Z',
   accounts: [{
     id: 'mail-1',
@@ -37,6 +37,7 @@ const sample: PortableVaultBackup = {
     scanWindowHours: 24,
     maxMessagesPerAccount: 30,
     autoRefresh: false,
+    theme: 'dark',
   },
 };
 
@@ -58,5 +59,14 @@ describe('portable encrypted backups', () => {
 
   it('requires a meaningful backup password', async () => {
     await expect(encryptPortableBackup(sample, 'short')).rejects.toThrow('至少需要 8 个字符');
+  });
+
+  it('supports independently encrypted mailbox and 2FA scopes', async () => {
+    const mailOnly = { ...sample, totpEntries: [] };
+    const totpOnly = { ...sample, accounts: [] };
+    const mailEncrypted = await encryptPortableBackup(mailOnly, 'mail backup password');
+    const totpEncrypted = await encryptPortableBackup(totpOnly, 'totp backup password');
+    await expect(decryptPortableBackup(mailEncrypted, 'mail backup password')).resolves.toEqual(mailOnly);
+    await expect(decryptPortableBackup(totpEncrypted, 'totp backup password')).resolves.toEqual(totpOnly);
   });
 });

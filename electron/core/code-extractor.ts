@@ -15,6 +15,16 @@ const KEYWORDS = [
   '認証コード',
   '確認コード',
   '인증 코드',
+  'sign in',
+  'log in',
+  'authenticate',
+  'confirm your identity',
+  'confirm your email',
+  '登录',
+  '身份验证',
+  '验证身份',
+  '確認',
+  '認証',
 ];
 
 const KEYWORD_PATTERN = new RegExp(KEYWORDS.join('|'), 'i');
@@ -70,9 +80,11 @@ export function extractVerificationCodes(subject: string, body: string): string[
         const isNumeric = /^\d+$/.test(code);
         if (!isNumeric && !isAlphanumeric) continue;
 
-        const context = surroundingText(text, match.index ?? 0, raw.length);
+        const context = surroundingText(text, match.index ?? 0, raw.length, 96);
         const nearKeyword = KEYWORD_PATTERN.test(context);
-        if (isAlphanumeric && !nearKeyword) continue;
+        // A number alone is not enough evidence: order IDs, prices and tracking
+        // numbers in ordinary mail must never enter the verification inbox.
+        if (!nearKeyword) continue;
 
         let score = 0;
         if (isSubject) score += 6;
@@ -95,4 +107,24 @@ export function extractVerificationCodes(subject: string, body: string): string[
 export function makePreview(text: string, maxLength = 150): string {
   const clean = text.replace(/\s+/g, ' ').trim();
   return clean.length > maxLength ? `${clean.slice(0, maxLength - 1)}…` : clean;
+}
+
+export function makeVerificationPurpose(subject: string, sender: string, codes: string[]): string {
+  let cleaned = (subject || '').replace(/\s+/g, ' ').trim();
+  for (const code of codes) {
+    const flexibleCode = code.split('').map((character) =>
+      character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+    ).join('[\\s-]*');
+    cleaned = cleaned.replace(new RegExp(flexibleCode, 'gi'), ' ');
+  }
+  cleaned = cleaned
+    .replace(/\s+/g, ' ')
+    .replace(/[\s:：|—–-]+$/g, '')
+    .trim();
+  if (cleaned && cleaned !== '(无主题)' && cleaned.length <= 100) return cleaned;
+
+  const senderName = sender.split('<')[0].replace(/["']/g, '').trim();
+  if (senderName && !senderName.includes('@')) return `${senderName} 的验证码`;
+  const address = sender.match(/[A-Z0-9._%+-]+@([A-Z0-9.-]+)/i);
+  return address?.[1] ? `${address[1]} 的验证码` : '账户登录验证码';
 }

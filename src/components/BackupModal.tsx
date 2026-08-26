@@ -1,20 +1,29 @@
 import { ArchiveRestore, Eye, EyeOff, LockKeyhole } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Modal } from './Modal';
+import type { BackupScope } from '../shared/contracts';
 
 interface BackupModalProps {
   mode: 'export' | 'import';
+  scope: BackupScope;
   busy: boolean;
   onClose: () => void;
   onSubmit: (password: string) => Promise<void>;
 }
 
-export function BackupModal({ mode, busy, onClose, onSubmit }: BackupModalProps) {
+const SCOPE_LABELS: Record<BackupScope, string> = {
+  all: '全部数据',
+  accounts: '邮箱账户',
+  totp: '2FA 动态码',
+};
+
+export function BackupModal({ mode, scope, busy, onClose, onSubmit }: BackupModalProps) {
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const exporting = mode === 'export';
   const mismatch = exporting && confirmation.length > 0 && password !== confirmation;
+  const scopeLabel = SCOPE_LABELS[scope];
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -24,8 +33,10 @@ export function BackupModal({ mode, busy, onClose, onSubmit }: BackupModalProps)
 
   return (
     <Modal
-      title={exporting ? '导出完整加密备份' : '导入完整加密备份'}
-      description={exporting ? '将邮箱、2FA 和设置打包为一个可跨电脑恢复的文件。' : '选择 .chbackup 文件，解密后与当前数据安全合并。'}
+      title={`${exporting ? '导出' : '导入'}${scopeLabel}加密备份`}
+      description={exporting
+        ? `将${scopeLabel}打包为一个可跨电脑恢复的加密文件。`
+        : `选择 .chbackup 文件，密码验证通过后导入其中的${scopeLabel}。`}
       onClose={onClose}
     >
       <form className="modal-form backup-form" onSubmit={submit}>

@@ -13,6 +13,7 @@ import {
 } from 'electron';
 import type {
   AppSettings,
+  BackupScope,
   BackupExportResult,
   BackupImportResult,
   MailAccountInput,
@@ -21,15 +22,14 @@ import type {
 import {
   decryptPortableBackup,
   encryptPortableBackup,
+  type PortableVaultBackup,
   validateBackupPassword,
 } from './core/backup';
 import { PROVIDERS } from './core/providers';
 import { MailboxService } from './services/mailbox';
 import { migrateLegacyVault, resolveDataDirectory } from './services/data-location';
 import { VaultStore } from './services/vault';
-
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) app.quit();
+import { UpdateService } from './services/updater';
 
 const smokeTest = process.env.CODEHARBOR_SMOKE_TEST === '1';
 if (smokeTest) {
@@ -39,9 +39,13 @@ if (smokeTest) {
   );
 }
 
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) app.quit();
+
 let mainWindow: BrowserWindow | null = null;
 let vault: VaultStore;
 let mailbox: MailboxService;
+let updater: UpdateService;
 let dataDirectory = '';
 
 const MAX_BACKUP_FILE_SIZE = 25 * 1024 * 1024;
@@ -62,6 +66,114 @@ function registerHandler<TArgs extends unknown[], TResult>(
       throw cleanError(error);
     }
   });
+}
+
+function validateBackupScope(scope: BackupScope): BackupScope {
+  if (scope !== 'all' && scope !== 'accounts' && scope !== 'totp') {
+    throw new Error('备份范围无效');
+  }
+  return scope;
+}
+
+function scopeFileName(scope: BackupScope, date: string): string {
+  if (scope === 'accounts') return `CodeHarbor-Mailboxes-${date}.chbackup`;
+  if (scope === 'totp') return `CodeHarbor-2FA-${date}.chbackup`;
+  return `CodeHarbor-Backup-${date}.chbackup`;
+}
+
+function scopeDialogName(scope: BackupScope): string {
+  if (scope === 'accounts') return '邮箱账户';
+  if (scope === 'totp') return '2FA 动态码';
+  return '全部数据';
+}
+
+async function portableForScope(scope: BackupScope): Promise<PortableVaultBackup> {
+  const portable = await vault.exportPortableData(app.getVersion());
+  if (scope === 'accounts') return { ...portable, totpEntries: [] };
+  if (scope === 'totp') return { ...portable, accounts: [] };
+  return portable;
+}
+
+async function exportEncryptedBackup(
+  requestedScope: BackupScope,
+  password: string,
+): Promise<BackupExportResult> {
+  const scope = validateBackupScope(requestedScope);
+  validateBackupPassword(password);
+  const portable = await portableForScope(scope);
+  const date = new Date().toISOString().slice(0, 10);
+  const options: SaveDialogOptions = {
+    title: `导出${scopeDialogName(scope)}加密备份`,
+    defaultPath: join(dataDirectory, scopeFileName(scope, date)),
+    buttonLabel: '导出加密备份',
+    filters: [{ name: 'CodeHarbor 加密备份', extensions: ['chbackup'] }],
+  };
+  const selected = mainWindow
+    ? await dialog.showSaveDialog(mainWindow, options)
+    : await dialog.showSaveDialog(options);
+  if (selected.canceled || !selected.filePath) {
+    return {
+      canceled: true,
+      accountCount: portable.accounts.length,
+      totpCount: portable.totpEntries.length,
+    };
+  }
+  const encrypted = await encryptPortableBackup(portable, password);
+  await writeFile(selected.filePath, encrypted, { mode: 0o600 });
+  return {
+    canceled: false,
+    fileName: basename(selected.filePath),
+    accountCount: portable.accounts.length,
+    totpCount: portable.totpEntries.length,
+  };
+}
+
+async function importEncryptedBackup(
+  requestedScope: BackupScope,
+  password: string,
+): Promise<BackupImportResult> {
+  const scope = validateBackupScope(requestedScope);
+  validateBackupPassword(password);
+  const options: OpenDialogOptions = {
+    title: `导入${scopeDialogName(scope)}加密备份`,
+    buttonLabel: '验证密码并导入',
+    properties: ['openFile'],
+    filters: [{ name: 'CodeHarbor 加密备份', extensions: ['chbackup'] }],
+  };
+  const selected = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, options)
+    : await dialog.showOpenDialog(options);
+  const filePath = selected.filePaths[0];
+  if (selected.canceled || !filePath) {
+    return {
+      canceled: true,
+      accountsCreated: 0,
+      accountsUpdated: 0,
+      totpCreated: 0,
+      totpUpdated: 0,
+    };
+  }
+  const fileInfo = await stat(filePath);
+  if (!fileInfo.isFile() || fileInfo.size < 1 || fileInfo.size > MAX_BACKUP_FILE_SIZE) {
+    throw new Error('备份文件为空或超过 25 MiB 安全限制');
+  }
+  const decrypted = await decryptPortableBackup(await readFile(filePath), password);
+  if (scope === 'accounts' && decrypted.accounts.length === 0) {
+    throw new Error('这个加密备份中没有邮箱账户');
+  }
+  if (scope === 'totp' && decrypted.totpEntries.length === 0) {
+    throw new Error('这个加密备份中没有 2FA 项目');
+  }
+  const scoped: PortableVaultBackup = scope === 'all'
+    ? decrypted
+    : {
+        ...decrypted,
+        accounts: scope === 'accounts' ? decrypted.accounts : [],
+        totpEntries: scope === 'totp' ? decrypted.totpEntries : [],
+        settings: vault.getSettings(),
+      };
+  const summary = await vault.importPortableData(scoped);
+  return { canceled: false, fileName: basename(filePath), ...summary };
 }
 
 function registerIpc(): void {
@@ -88,60 +200,20 @@ function registerIpc(): void {
   registerHandler('totp:remove', (id: string) => vault.removeTotp(id));
   registerHandler('totp:codes', () => vault.generateTotpCodes());
   registerHandler('settings:update', (input: Partial<AppSettings>) => vault.updateSettings(input));
-  registerHandler('backup:export', async (password: string): Promise<BackupExportResult> => {
-    validateBackupPassword(password);
-    const portable = await vault.exportPortableData(app.getVersion());
-    const date = new Date().toISOString().slice(0, 10);
-    const options: SaveDialogOptions = {
-      title: '导出 CodeHarbor 加密备份',
-      defaultPath: join(dataDirectory, `CodeHarbor-Backup-${date}.chbackup`),
-      buttonLabel: '导出备份',
-      filters: [{ name: 'CodeHarbor 加密备份', extensions: ['chbackup'] }],
-    };
-    const selected = mainWindow
-      ? await dialog.showSaveDialog(mainWindow, options)
-      : await dialog.showSaveDialog(options);
-    if (selected.canceled || !selected.filePath) {
-      return { canceled: true, accountCount: portable.accounts.length, totpCount: portable.totpEntries.length };
-    }
-    const encrypted = await encryptPortableBackup(portable, password);
-    await writeFile(selected.filePath, encrypted, { mode: 0o600 });
-    return {
-      canceled: false,
-      fileName: basename(selected.filePath),
-      accountCount: portable.accounts.length,
-      totpCount: portable.totpEntries.length,
-    };
-  });
-  registerHandler('backup:import', async (password: string): Promise<BackupImportResult> => {
-    validateBackupPassword(password);
-    const options: OpenDialogOptions = {
-      title: '导入 CodeHarbor 加密备份',
-      buttonLabel: '导入备份',
-      properties: ['openFile'],
-      filters: [{ name: 'CodeHarbor 加密备份', extensions: ['chbackup'] }],
-    };
-    const selected = mainWindow
-      ? await dialog.showOpenDialog(mainWindow, options)
-      : await dialog.showOpenDialog(options);
-    const filePath = selected.filePaths[0];
-    if (selected.canceled || !filePath) {
-      return {
-        canceled: true,
-        accountsCreated: 0,
-        accountsUpdated: 0,
-        totpCreated: 0,
-        totpUpdated: 0,
-      };
-    }
-    const fileInfo = await stat(filePath);
-    if (!fileInfo.isFile() || fileInfo.size < 1 || fileInfo.size > MAX_BACKUP_FILE_SIZE) {
-      throw new Error('备份文件为空或超过 25 MiB 安全限制');
-    }
-    const backup = await decryptPortableBackup(await readFile(filePath), password);
-    const summary = await vault.importPortableData(backup);
-    return { canceled: false, fileName: basename(filePath), ...summary };
-  });
+  registerHandler('backup:export', (password: string) =>
+    exportEncryptedBackup('all', password),
+  );
+  registerHandler('backup:import', (password: string) =>
+    importEncryptedBackup('all', password),
+  );
+  registerHandler('backup:export-scope', (scope: BackupScope, password: string) =>
+    exportEncryptedBackup(scope, password),
+  );
+  registerHandler('backup:import-scope', (scope: BackupScope, password: string) =>
+    importEncryptedBackup(scope, password),
+  );
+  registerHandler('updater:status', () => updater.getStatus());
+  registerHandler('updater:check', () => updater.check());
   registerHandler('system:copy', (text: string) => {
     if (typeof text !== 'string' || text.length > 1000) throw new Error('复制内容无效');
     clipboard.writeText(text);
@@ -255,11 +327,50 @@ async function createWindow(): Promise<void> {
     await writeFile(output.replace(/\.png$/i, '-totp.png'), totpImage.toPNG());
 
     await mainWindow.webContents.executeJavaScript(`
+      document.querySelector('.totp-intro .button.primary')?.click()
+    `);
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 220));
+    await mainWindow.webContents.executeJavaScript(`
+      document.querySelector('.help-hint')?.focus()
+    `);
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 120));
+    const totpHelpImage = await mainWindow.webContents.capturePage();
+    await writeFile(output.replace(/\.png$/i, '-totp-help.png'), totpHelpImage.toPNG());
+    await mainWindow.webContents.executeJavaScript(`
+      document.querySelector('.modal-header .icon-button')?.click()
+    `);
+
+    await mainWindow.webContents.executeJavaScript(`
       document.querySelectorAll('.sidebar-nav button')[3]?.click()
     `);
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
     const settingsImage = await mainWindow.webContents.capturePage();
     await writeFile(output.replace(/\.png$/i, '-settings.png'), settingsImage.toPNG());
+    await mainWindow.webContents.executeJavaScript(`
+      document.querySelector('.theme-buttons button:last-child')?.click()
+    `);
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 280));
+    const lightTheme = await mainWindow.webContents.executeJavaScript(`document.documentElement.dataset.theme`);
+    if (lightTheme !== 'light') throw new Error('Light theme did not apply');
+    const settingsLightImage = await mainWindow.webContents.capturePage();
+    await writeFile(output.replace(/\.png$/i, '-settings-light.png'), settingsLightImage.toPNG());
+    await mainWindow.webContents.executeJavaScript(`
+      document.querySelector('.theme-buttons button:first-child')?.click()
+    `);
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 280));
+    const darkTheme = await mainWindow.webContents.executeJavaScript(`document.documentElement.dataset.theme`);
+    if (darkTheme !== 'dark') throw new Error('Dark theme did not restore');
+    const updateScroll = await mainWindow.webContents.executeJavaScript(`(() => {
+      document.querySelector('.update-card')?.scrollIntoView({ block: 'center' });
+      const scroller = document.querySelector('.page-scroll');
+      return scroller ? { top: scroller.scrollTop, height: scroller.scrollHeight, client: scroller.clientHeight } : null;
+    })()`);
+    if (!updateScroll || updateScroll.height <= updateScroll.client || updateScroll.top <= 0) {
+      throw new Error(`Settings page did not expose working vertical scrolling: ${JSON.stringify(updateScroll)}`);
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
+    const updateImage = await mainWindow.webContents.capturePage();
+    await writeFile(output.replace(/\.png$/i, '-update.png'), updateImage.toPNG());
     await mainWindow.webContents.executeJavaScript(`
       document.querySelector('.portability-card .button.primary')?.click()
     `);
@@ -268,16 +379,17 @@ async function createWindow(): Promise<void> {
     await writeFile(output.replace(/\.png$/i, '-backup.png'), backupImage.toPNG());
     await mainWindow.webContents.executeJavaScript(`
       document.querySelector('.modal-header .icon-button')?.click();
-      const scroller = document.querySelector('.page-scroll');
-      if (scroller) scroller.scrollTop = scroller.scrollHeight;
       const gmailGuide = [...document.querySelectorAll('.provider-tutorials details')]
         .find((item) => item.textContent?.includes('Google Gmail'));
-      if (gmailGuide) gmailGuide.open = true;
+      if (gmailGuide) {
+        gmailGuide.open = true;
+        gmailGuide.scrollIntoView({ block: 'center' });
+      }
     `);
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 180));
     const tutorialImage = await mainWindow.webContents.capturePage();
     await writeFile(output.replace(/\.png$/i, '-tutorials.png'), tutorialImage.toPNG());
-    console.log(`CODEHARBOR_SMOKE_OK ${JSON.stringify({ ...snapshot, backupSummary, mailboxStatus })}`);
+    console.log(`CODEHARBOR_SMOKE_OK ${JSON.stringify({ ...snapshot, backupSummary, mailboxStatus, lightTheme, darkTheme, updateScroll })}`);
     app.quit();
   }
 }
@@ -310,8 +422,10 @@ app.whenReady().then(async () => {
   vault = new VaultStore(vaultPath);
   await vault.initialize();
   mailbox = new MailboxService(vault);
+  updater = new UpdateService(smokeTest);
   registerIpc();
   await createWindow();
+  updater.scheduleAutomaticCheck();
 
   app.on('activate', async () => {
     if (BrowserWindow.getAllWindows().length === 0) await createWindow();

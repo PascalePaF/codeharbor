@@ -1,4 +1,4 @@
-import { Check, Clipboard, FileUp, KeyRound, Pencil, Plus, RefreshCcw, Timer, Trash2 } from 'lucide-react';
+import { Check, Clipboard, Download, FileUp, KeyRound, Pencil, Plus, RefreshCcw, Timer, Trash2, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { PublicTotpEntry, TotpCode } from '../shared/contracts';
 
@@ -8,12 +8,14 @@ interface TotpPageProps {
   search: string;
   onAdd: () => void;
   onBulk: () => void;
+  onSecureImport: () => void;
+  onSecureExport: () => void;
   onEdit: (entry: PublicTotpEntry) => void;
   onDelete: (entry: PublicTotpEntry) => Promise<void>;
   onCopy: (value: string) => Promise<void>;
 }
 
-export function TotpPage({ entries, codes, search, onAdd, onBulk, onEdit, onDelete, onCopy }: TotpPageProps) {
+export function TotpPage({ entries, codes, search, onAdd, onBulk, onSecureImport, onSecureExport, onEdit, onDelete, onCopy }: TotpPageProps) {
   const [copied, setCopied] = useState('');
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -30,7 +32,12 @@ export function TotpPage({ entries, codes, search, onAdd, onBulk, onEdit, onDele
     <div className="page-stack">
       <section className="page-intro totp-intro">
         <div><span className="eyebrow green">TIME-BASED AUTH</span><h2>2FA 动态验证码</h2><p>基于本机时间离线计算；添加后无需网络，也不会把密钥发往外部。</p></div>
-        <div className="button-row"><button className="button secondary" type="button" onClick={onBulk}><FileUp size={17} /> 批量导入</button><button className="button primary" type="button" onClick={onAdd}><Plus size={17} /> 添加 2FA</button></div>
+        <div className="button-row page-actions">
+          <button className="button secondary" type="button" onClick={onBulk}><FileUp size={17} /> CSV 批量导入</button>
+          <button className="button secondary" type="button" onClick={onSecureImport}><Upload size={17} /> 加密导入</button>
+          <button className="button secondary" type="button" onClick={onSecureExport} disabled={!entries.length}><Download size={17} /> 加密导出</button>
+          <button className="button primary" type="button" onClick={onAdd}><Plus size={17} /> 添加 2FA</button>
+        </div>
       </section>
 
       <div className="sync-note"><RefreshCcw size={16} /><span><strong>时间同步很重要</strong> · 若动态码无效，请先确认 Windows 时间已自动同步。</span></div>

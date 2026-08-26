@@ -1,23 +1,30 @@
-import { ArchiveRestore, CheckCircle2, Database, Download, ExternalLink, HardDrive, LockKeyhole, Save, Server, ShieldAlert, Upload } from 'lucide-react';
+import { ArchiveRestore, CheckCircle2, ChevronLeft, ChevronRight, CloudDownload, Database, Download, ExternalLink, HardDrive, LockKeyhole, Moon, RefreshCw, Save, Server, ShieldAlert, Sun, Upload } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
-import type { AppSettings, ProviderPreset, VaultInfo } from '../shared/contracts';
+import type { AppSettings, ProviderPreset, UpdateState, VaultInfo } from '../shared/contracts';
 
 interface SettingsPageProps {
   settings: AppSettings;
   vault: VaultInfo;
   providers: ProviderPreset[];
   version: string;
+  updateState?: UpdateState;
   busy: boolean;
   onSave: (settings: Partial<AppSettings>) => Promise<void>;
+  onCheckUpdates: () => Promise<void>;
   onExport: () => void;
   onImport: () => void;
   onOpenExternal: (url: string) => Promise<void>;
 }
 
-export function SettingsPage({ settings, vault, providers, version, busy, onSave, onExport, onImport, onOpenExternal }: SettingsPageProps) {
+export function SettingsPage({ settings, vault, providers, version, updateState, busy, onSave, onCheckUpdates, onExport, onImport, onOpenExternal }: SettingsPageProps) {
   const [draft, setDraft] = useState(settings);
   useEffect(() => setDraft(settings), [settings]);
   const submit = (event: FormEvent) => { event.preventDefault(); void onSave(draft); };
+  const setTheme = (theme: AppSettings['theme']) => {
+    setDraft((current) => ({ ...current, theme }));
+    void onSave({ theme });
+  };
+  const checkingUpdate = updateState?.phase === 'checking' || updateState?.phase === 'downloading' || updateState?.phase === 'downloaded';
 
   return (
     <div className="page-stack settings-layout">
@@ -25,6 +32,19 @@ export function SettingsPage({ settings, vault, providers, version, busy, onSave
         <div className="security-orb"><LockKeyhole size={25} /></div>
         <div><span className="eyebrow green">LOCAL-FIRST SECURITY</span><h2>{vault.encryptionAvailable ? '系统加密保护已启用' : '系统安全存储不可用'}</h2><p>邮箱凭据与 2FA 密钥不会进入网页存储，也不会发送到 CodeHarbor 服务器。</p></div>
         <span className={`status-badge ${vault.encryptionAvailable ? 'ok' : 'error'}`}>{vault.encryptionAvailable ? <CheckCircle2 size={14} /> : <ShieldAlert size={14} />}{vault.encryptionAvailable ? '保护中' : '不可用'}</span>
+      </section>
+
+      <section className="content-panel theme-control-card">
+        <div className="theme-description">
+          <div className={`theme-preview ${settings.theme}`}>
+            {settings.theme === 'dark' ? <Moon size={22} /> : <Sun size={22} />}
+          </div>
+          <div><span className="eyebrow green">界面主题</span><h3>{settings.theme === 'dark' ? '黑夜模式' : '白天模式'}</h3><p>选择更适合当前环境的高对比度配色，修改后立即生效。</p></div>
+        </div>
+        <div className="theme-buttons" aria-label="切换界面主题">
+          <button className="button secondary" type="button" onClick={() => setTheme(settings.theme === 'dark' ? 'light' : 'dark')} disabled={busy}><ChevronLeft size={17} /> 上一个主题</button>
+          <button className="button secondary" type="button" onClick={() => setTheme(settings.theme === 'dark' ? 'light' : 'dark')} disabled={busy}>下一个主题 <ChevronRight size={17} /></button>
+        </div>
       </section>
 
       <div className="settings-columns">
@@ -42,11 +62,27 @@ export function SettingsPage({ settings, vault, providers, version, busy, onSave
         <section className="content-panel settings-card vault-card">
           <header className="panel-header"><div><h3>本地保险库</h3><span>敏感信息存储状态</span></div></header>
           <div className="vault-detail"><div><HardDrive size={19} /><span><small>加密后端</small><strong>{vault.backend}</strong></span></div><div><Database size={19} /><span><small>数据文件</small><strong title={vault.storagePath}>{vault.storagePath}</strong></span></div></div>
-          <div className="install-data-note"><CheckCircle2 size={15} /><span>V1.0.1 起数据默认保存在程序安装目录下的 <code>CodeHarbor-Data</code>，不再固定使用 C 盘用户目录。</span></div>
+          <div className="install-data-note"><CheckCircle2 size={15} /><span>数据默认保存在程序安装目录下的 <code>CodeHarbor-Data</code>，不固定使用 C 盘用户目录。</span></div>
           <div className="privacy-note"><ShieldAlert size={17} /><p>同一 Windows 登录用户下的其他高权限程序仍可能访问本机数据。请保持系统账户与设备安全，不要共享导出的凭据文件。</p></div>
           <div className="version-row"><span>CodeHarbor 验证码港</span><strong>V{version}</strong></div>
         </section>
       </div>
+
+      <section className="content-panel update-card">
+        <header className="panel-header"><div><h3>软件更新</h3><span>通过 GitHub Releases 自动检查、后台下载并重启完成更新</span></div><CloudDownload size={21} /></header>
+        <div className="update-content">
+          <div className={`update-state ${updateState?.phase ?? 'idle'}`} aria-live="polite">
+            <strong>当前版本 V{version}{updateState?.availableVersion && updateState.availableVersion !== version ? ` · 最新 V${updateState.availableVersion}` : ''}</strong>
+            <span>{updateState?.message ?? '正在读取更新状态…'}</span>
+            {updateState?.percent !== undefined && (updateState.phase === 'downloading' || updateState.phase === 'downloaded') && (
+              <div className="update-progress" role="progressbar" aria-valuenow={updateState.percent} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${updateState.percent}%` }} /></div>
+            )}
+          </div>
+          <button className="button secondary" type="button" onClick={() => void onCheckUpdates()} disabled={checkingUpdate || updateState?.phase === 'unsupported'}>
+            <RefreshCw size={16} className={checkingUpdate ? 'spin' : ''} /> {checkingUpdate ? '正在处理更新…' : '立即检查更新'}
+          </button>
+        </div>
+      </section>
 
       <section className="content-panel portability-card">
         <header className="panel-header"><div><h3>跨电脑备份与恢复</h3><span>导出全部邮箱、2FA 和扫描设置</span></div><ArchiveRestore size={19} /></header>

@@ -51,6 +51,7 @@ describe('mailbox connection errors', () => {
         scanWindowHours: 24,
         maxMessagesPerAccount: 30,
         autoRefresh: false,
+        theme: 'dark' as const,
       }),
       setAccountStatus: (_id: string, status: unknown) => statuses.push(status),
     } as unknown as VaultStore;

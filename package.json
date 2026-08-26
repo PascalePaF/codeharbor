@@ -1,11 +1,15 @@
 {
   "name": "codeharbor",
   "productName": "CodeHarbor 验证码港",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "本地优先的多邮箱验证码与 TOTP 管理桌面应用",
   "main": "dist-electron/electron/main.js",
   "private": true,
   "author": "CodeHarbor Contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PascalePaF/codeharbor.git"
+  },
   "scripts": {
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
     "dev:renderer": "vite --host 127.0.0.1",
@@ -23,6 +27,7 @@
     "start": "electron ."
   },
   "dependencies": {
+    "electron-updater": "6.8.9",
     "imapflow": "1.7.2",
     "lucide-react": "1.33.0",
     "papaparse": "5.6.0",
@@ -65,11 +70,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "artifactName": "CodeHarbor-${version}-${arch}.${ext}"
@@ -85,6 +94,14 @@
     },
     "portable": {
       "artifactName": "CodeHarbor-Portable-${version}-${arch}.${ext}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "PascalePaF",
+        "repo": "codeharbor",
+        "releaseType": "release"
+      }
+    ]
   }
 }

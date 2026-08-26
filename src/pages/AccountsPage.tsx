@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleAlert, Clock3, FileUp, Mail, MoreVertical, Pencil, Plus, Power, RefreshCw, Server, Trash2 } from 'lucide-react';
+import { CheckCircle2, CircleAlert, Clock3, Download, FileUp, Mail, MoreVertical, Pencil, Plus, Power, RefreshCw, Server, Trash2, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { formatRelativeTime, maskEmail } from '../lib/format';
 import type { ProviderPreset, PublicMailAccount } from '../shared/contracts';
@@ -10,6 +10,8 @@ interface AccountsPageProps {
   testingId: string;
   onAdd: () => void;
   onBulk: () => void;
+  onSecureImport: () => void;
+  onSecureExport: () => void;
   onEdit: (account: PublicMailAccount) => void;
   onDelete: (account: PublicMailAccount) => Promise<void>;
   onToggle: (account: PublicMailAccount) => Promise<void>;
@@ -23,7 +25,7 @@ function StatusBadge({ account }: { account: PublicMailAccount }) {
   return <span className="status-badge idle"><Clock3 size={14} /> 未检查</span>;
 }
 
-export function AccountsPage({ accounts, providers, search, testingId, onAdd, onBulk, onEdit, onDelete, onToggle, onTest }: AccountsPageProps) {
+export function AccountsPage({ accounts, providers, search, testingId, onAdd, onBulk, onSecureImport, onSecureExport, onEdit, onDelete, onToggle, onTest }: AccountsPageProps) {
   const [openMenu, setOpenMenu] = useState('');
   useEffect(() => {
     const close = () => setOpenMenu('');
@@ -39,7 +41,12 @@ export function AccountsPage({ accounts, providers, search, testingId, onAdd, on
     <div className="page-stack">
       <section className="page-intro">
         <div><span className="eyebrow green">ACCOUNT VAULT</span><h2>管理邮箱连接</h2><p>使用 IMAP 只读访问。新增凭据写入后不会在界面中回显。</p></div>
-        <div className="button-row"><button className="button secondary" type="button" onClick={onBulk}><FileUp size={17} /> 批量导入</button><button className="button primary" type="button" onClick={onAdd}><Plus size={17} /> 添加邮箱</button></div>
+        <div className="button-row page-actions">
+          <button className="button secondary" type="button" onClick={onBulk}><FileUp size={17} /> CSV 批量导入</button>
+          <button className="button secondary" type="button" onClick={onSecureImport}><Upload size={17} /> 加密导入</button>
+          <button className="button secondary" type="button" onClick={onSecureExport} disabled={!accounts.length}><Download size={17} /> 加密导出</button>
+          <button className="button primary" type="button" onClick={onAdd}><Plus size={17} /> 添加邮箱</button>
+        </div>
       </section>
 
       <section className="content-panel account-panel">

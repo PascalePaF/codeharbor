@@ -11,6 +11,8 @@ export type ProviderId =
 
 export type AuthMode = 'password' | 'oauth2';
 export type TotpAlgorithm = 'SHA1' | 'SHA256' | 'SHA512';
+export type ThemeId = 'light' | 'dark';
+export type BackupScope = 'all' | 'accounts' | 'totp';
 
 export interface ProviderPreset {
   id: ProviderId;
@@ -81,11 +83,10 @@ export interface VerificationMessage {
   accountLabel: string;
   accountEmail: string;
   provider: ProviderId;
-  subject: string;
   sender: string;
   receivedAt: string;
   codes: string[];
-  preview: string;
+  purpose: string;
 }
 
 export interface ScanResult {
@@ -125,6 +126,26 @@ export interface AppSettings {
   scanWindowHours: number;
   maxMessagesPerAccount: number;
   autoRefresh: boolean;
+  theme: ThemeId;
+}
+
+export type UpdatePhase =
+  | 'idle'
+  | 'unsupported'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'up-to-date'
+  | 'error';
+
+export interface UpdateState {
+  phase: UpdatePhase;
+  currentVersion: string;
+  availableVersion?: string;
+  percent?: number;
+  message: string;
+  checkedAt?: string;
 }
 
 export interface VaultInfo {
@@ -188,6 +209,13 @@ export interface CodeHarborBridge {
   backup: {
     exportAll(password: string): Promise<BackupExportResult>;
     importAll(password: string): Promise<BackupImportResult>;
+    exportScope(scope: BackupScope, password: string): Promise<BackupExportResult>;
+    importScope(scope: BackupScope, password: string): Promise<BackupImportResult>;
+  };
+  updater: {
+    status(): Promise<UpdateState>;
+    check(): Promise<UpdateState>;
+    onStatus(listener: (status: UpdateState) => void): () => void;
   };
   system: {
     copy(text: string): Promise<void>;

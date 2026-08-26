@@ -16,11 +16,13 @@ import { TotpPage } from './pages/TotpPage';
 import type {
   AppBootstrap,
   AppSettings,
+  BackupScope,
   MailAccountInput,
   PublicMailAccount,
   PublicTotpEntry,
   TotpCode,
   TotpInput,
+  UpdateState,
   VerificationMessage,
 } from './shared/contracts';
 
@@ -29,8 +31,8 @@ type ModalState =
   | { type: 'mail-import' }
   | { type: 'totp'; entry?: PublicTotpEntry }
   | { type: 'totp-import' }
-  | { type: 'backup-export' }
-  | { type: 'backup-import' }
+  | { type: 'backup-export'; scope: BackupScope }
+  | { type: 'backup-import'; scope: BackupScope }
   | null;
 
 export default function App() {
@@ -42,7 +44,8 @@ export default function App() {
   const [lastScan, setLastScan] = useState<string>();
   const [modal, setModal] = useState<ModalState>(null);
   const [busy, setBusy] = useState(false);
-  const [scanning, setScanning] = useState(false);
+  const [scanningTarget, setScanningTarget] = useState('');
+  const [updateState, setUpdateState] = useState<UpdateState>();
   const [testingId, setTestingId] = useState('');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const toastId = useRef(0);
@@ -64,6 +67,17 @@ export default function App() {
     void reload().catch((error) => toast(friendlyError(error), 'error'));
   }, [reload, toast]);
 
+  useEffect(() => {
+    void window.codeHarbor.updater.status().then(setUpdateState).catch(() => undefined);
+    return window.codeHarbor.updater.onStatus(setUpdateState);
+  }, []);
+
+  useEffect(() => {
+    if (!data?.settings.theme) return;
+    document.documentElement.dataset.theme = data.settings.theme;
+    document.documentElement.style.colorScheme = data.settings.theme;
+  }, [data?.settings.theme]);
+
   const refreshTotp = useCallback(async () => {
     try { setTotpCodes(await window.codeHarbor.totp.codes()); }
     catch (error) { toast(friendlyError(error), 'error'); }
@@ -76,21 +90,25 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [data?.totpEntries.length, refreshTotp]);
 
-  const scanMail = useCallback(async (silent = false) => {
+  const scanMail = useCallback(async (silent = false, accountId?: string) => {
     if (scanGuard.current) return;
     scanGuard.current = true;
-    setScanning(true);
+    setScanningTarget(accountId ?? 'all');
     try {
-      const result = await window.codeHarbor.mail.scan();
-      setMessages(result.messages);
+      const result = await window.codeHarbor.mail.scan(accountId ? [accountId] : undefined);
+      setMessages((current) => accountId
+        ? [...current.filter((message) => message.accountId !== accountId), ...result.messages]
+            .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt))
+        : result.messages,
+      );
       setLastScan(result.scannedAt);
       await reload();
       const failures = result.statuses.filter((status) => status.state === 'error').length;
       if (!silent) {
         toast(
           failures
-            ? `扫描完成：找到 ${result.messages.length} 封验证码邮件，${failures} 个邮箱失败`
-            : `扫描完成：找到 ${result.messages.length} 封验证码邮件`,
+            ? `扫描完成：找到 ${result.messages.length} 条验证码，${failures} 个邮箱失败`
+            : `扫描完成：找到 ${result.messages.length} 条验证码`,
           failures ? 'info' : 'success',
         );
       }
@@ -98,7 +116,7 @@ export default function App() {
       toast(friendlyError(error), 'error');
     } finally {
       scanGuard.current = false;
-      setScanning(false);
+      setScanningTarget('');
     }
   }, [reload, toast]);
 
@@ -206,20 +224,20 @@ export default function App() {
     finally { setBusy(false); }
   };
 
-  const exportBackup = async (password: string) => {
+  const exportBackup = async (scope: BackupScope, password: string) => {
     setBusy(true);
     try {
-      const result = await window.codeHarbor.backup.exportAll(password);
+      const result = await window.codeHarbor.backup.exportScope(scope, password);
       setModal(null);
-      if (!result.canceled) toast(`完整备份已导出：${result.accountCount} 个邮箱，${result.totpCount} 个 2FA`);
+      if (!result.canceled) toast(`加密备份已导出：${result.accountCount} 个邮箱，${result.totpCount} 个 2FA`);
     } catch (error) { toast(friendlyError(error), 'error'); }
     finally { setBusy(false); }
   };
 
-  const importBackup = async (password: string) => {
+  const importBackup = async (scope: BackupScope, password: string) => {
     setBusy(true);
     try {
-      const result = await window.codeHarbor.backup.importAll(password);
+      const result = await window.codeHarbor.backup.importScope(scope, password);
       if (result.canceled) { setModal(null); return; }
       await reload();
       await refreshTotp();
@@ -243,6 +261,11 @@ export default function App() {
 
   const changePage = (next: PageId) => { setPage(next); setSearch(''); };
 
+  const checkForUpdates = async () => {
+    try { setUpdateState(await window.codeHarbor.updater.check()); }
+    catch (error) { toast(friendlyError(error), 'error'); }
+  };
+
   if (!data) {
     return <main className="splash"><div className="splash-mark"><LoaderCircle size={30} className="spin" /></div><strong>CodeHarbor</strong><span>正在打开本地保险库…</span></main>;
   }
@@ -253,10 +276,10 @@ export default function App() {
       <main className="main-column">
         <Topbar page={page} search={search} onSearch={setSearch} />
         <div className="page-scroll">
-          {page === 'inbox' && <InboxPage accounts={data.accounts} messages={messages} providers={data.providers} search={search} scanning={scanning} lastScan={lastScan} onScan={() => scanMail(false)} onCopy={copy} onGoAccounts={() => changePage('accounts')} />}
-          {page === 'accounts' && <AccountsPage accounts={data.accounts} providers={data.providers} search={search} testingId={testingId} onAdd={() => setModal({ type: 'account' })} onBulk={() => setModal({ type: 'mail-import' })} onEdit={(account) => setModal({ type: 'account', account })} onDelete={deleteAccount} onToggle={toggleAccount} onTest={testAccount} />}
-          {page === 'totp' && <TotpPage entries={data.totpEntries} codes={totpCodes} search={search} onAdd={() => setModal({ type: 'totp' })} onBulk={() => setModal({ type: 'totp-import' })} onEdit={(entry) => setModal({ type: 'totp', entry })} onDelete={deleteTotp} onCopy={copy} />}
-          {page === 'settings' && <SettingsPage settings={data.settings} vault={data.vault} providers={data.providers} version={data.version} busy={busy} onSave={saveSettings} onExport={() => setModal({ type: 'backup-export' })} onImport={() => setModal({ type: 'backup-import' })} onOpenExternal={openExternal} />}
+          {page === 'inbox' && <InboxPage accounts={data.accounts} messages={messages} providers={data.providers} totpCodes={totpCodes} search={search} scanningTarget={scanningTarget} lastScan={lastScan} onScanAll={() => scanMail(false)} onScanAccount={(accountId) => scanMail(false, accountId)} onCopy={copy} onGoAccounts={() => changePage('accounts')} />}
+          {page === 'accounts' && <AccountsPage accounts={data.accounts} providers={data.providers} search={search} testingId={testingId} onAdd={() => setModal({ type: 'account' })} onBulk={() => setModal({ type: 'mail-import' })} onSecureImport={() => setModal({ type: 'backup-import', scope: 'accounts' })} onSecureExport={() => setModal({ type: 'backup-export', scope: 'accounts' })} onEdit={(account) => setModal({ type: 'account', account })} onDelete={deleteAccount} onToggle={toggleAccount} onTest={testAccount} />}
+          {page === 'totp' && <TotpPage entries={data.totpEntries} codes={totpCodes} search={search} onAdd={() => setModal({ type: 'totp' })} onBulk={() => setModal({ type: 'totp-import' })} onSecureImport={() => setModal({ type: 'backup-import', scope: 'totp' })} onSecureExport={() => setModal({ type: 'backup-export', scope: 'totp' })} onEdit={(entry) => setModal({ type: 'totp', entry })} onDelete={deleteTotp} onCopy={copy} />}
+          {page === 'settings' && <SettingsPage settings={data.settings} vault={data.vault} providers={data.providers} version={data.version} updateState={updateState} busy={busy} onSave={saveSettings} onCheckUpdates={checkForUpdates} onExport={() => setModal({ type: 'backup-export', scope: 'all' })} onImport={() => setModal({ type: 'backup-import', scope: 'all' })} onOpenExternal={openExternal} />}
         </div>
       </main>
 
@@ -264,8 +287,8 @@ export default function App() {
       {modal?.type === 'mail-import' && <MailImportModal providers={data.providers} busy={busy} onClose={() => setModal(null)} onImport={bulkAccounts} />}
       {modal?.type === 'totp' && <TotpModal entry={modal.entry} busy={busy} onClose={() => setModal(null)} onSave={saveTotp} />}
       {modal?.type === 'totp-import' && <TotpImportModal busy={busy} onClose={() => setModal(null)} onImport={bulkTotp} />}
-      {modal?.type === 'backup-export' && <BackupModal mode="export" busy={busy} onClose={() => setModal(null)} onSubmit={exportBackup} />}
-      {modal?.type === 'backup-import' && <BackupModal mode="import" busy={busy} onClose={() => setModal(null)} onSubmit={importBackup} />}
+      {modal?.type === 'backup-export' && <BackupModal mode="export" scope={modal.scope} busy={busy} onClose={() => setModal(null)} onSubmit={(password) => exportBackup(modal.scope, password)} />}
+      {modal?.type === 'backup-import' && <BackupModal mode="import" scope={modal.scope} busy={busy} onClose={() => setModal(null)} onSubmit={(password) => importBackup(modal.scope, password)} />}
       <ToastStack toasts={toasts} dismiss={(id) => setToasts((items) => items.filter((item) => item.id !== id))} />
     </div>
   );

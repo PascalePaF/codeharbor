@@ -33,8 +33,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $artifacts = Get-ChildItem -LiteralPath release -Filter *.exe | ForEach-Object { $_.FullName }
-          if (-not $artifacts) { throw "No Windows artifacts were generated" }
+          $installers = Get-ChildItem -LiteralPath release -Filter *.exe
+          $updateManifest = Get-Item -LiteralPath release/latest.yml -ErrorAction Stop
+          $blockmaps = Get-ChildItem -LiteralPath release -Filter *.blockmap
+          if (-not $installers) { throw "No Windows artifacts were generated" }
+          if (-not $blockmaps) { throw "No differential update blockmap was generated" }
+          $artifacts = @($installers.FullName) + @($updateManifest.FullName) + @($blockmaps.FullName)
           $checksumLines = Get-ChildItem -LiteralPath release -Filter *.exe | ForEach-Object {
             $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash
             "$hash  $($_.Name)"

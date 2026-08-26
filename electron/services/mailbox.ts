@@ -4,7 +4,11 @@ import type {
   ScanResult,
   VerificationMessage,
 } from '../../src/shared/contracts';
-import { extractVerificationCodes, makePreview, stripHtml } from '../core/code-extractor';
+import {
+  extractVerificationCodes,
+  makeVerificationPurpose,
+  stripHtml,
+} from '../core/code-extractor';
 import type { VaultStore } from './vault';
 
 type DecryptedAccount = Awaited<ReturnType<VaultStore['getDecryptedAccount']>>;
@@ -175,7 +179,7 @@ class ImapFlowSession implements MailboxSession {
       maxResponseSize: MAX_MESSAGE_BYTES + 2 * 1024 * 1024,
       clientInfo: {
         name: 'CodeHarbor',
-        version: '1.0.1',
+        version: '1.0.2',
         vendor: 'CodeHarbor',
       },
       tls: {
@@ -474,13 +478,12 @@ export class MailboxService {
       accountLabel: account.label,
       accountEmail: account.email,
       provider: account.provider,
-      subject,
       sender,
       receivedAt: Number.isNaN(receivedDate.getTime())
         ? new Date().toISOString()
         : receivedDate.toISOString(),
       codes,
-      preview: makePreview(body || subject),
+      purpose: makeVerificationPurpose(subject, sender, codes),
     };
   }
 

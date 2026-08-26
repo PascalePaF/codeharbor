@@ -11,8 +11,10 @@ import type {
   TotpCode,
   TotpInput,
   AccountScanStatus,
+  BackupScope,
   BackupExportResult,
   BackupImportResult,
+  UpdateState,
 } from '../src/shared/contracts';
 
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> => ipcRenderer.invoke(channel, ...args);
@@ -43,6 +45,19 @@ const bridge: CodeHarborBridge = {
   backup: {
     exportAll: (password: string) => invoke<BackupExportResult>('backup:export', password),
     importAll: (password: string) => invoke<BackupImportResult>('backup:import', password),
+    exportScope: (scope: BackupScope, password: string) =>
+      invoke<BackupExportResult>('backup:export-scope', scope, password),
+    importScope: (scope: BackupScope, password: string) =>
+      invoke<BackupImportResult>('backup:import-scope', scope, password),
+  },
+  updater: {
+    status: () => invoke<UpdateState>('updater:status'),
+    check: () => invoke<UpdateState>('updater:check'),
+    onStatus: (listener: (status: UpdateState) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, status: UpdateState) => listener(status);
+      ipcRenderer.on('updater:status-changed', handler);
+      return () => ipcRenderer.removeListener('updater:status-changed', handler);
+    },
   },
   system: {
     copy: (text: string) => invoke<void>('system:copy', text),

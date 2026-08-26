@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractVerificationCodes, makePreview, stripHtml } from './code-extractor';
+import { extractVerificationCodes, makePreview, makeVerificationPurpose, stripHtml } from './code-extractor';
 
 describe('verification code extraction', () => {
   it('prioritizes a six-digit code near a Chinese keyword', () => {
@@ -16,9 +16,19 @@ describe('verification code extraction', () => {
     expect(extractVerificationCodes('2026 年度报告', '这不是验证码邮件')).not.toContain('2026');
   });
 
+  it('ignores ordinary mail numbers without verification context', () => {
+    expect(extractVerificationCodes('Your order has shipped', 'Tracking reference 482913 is on the way.'))
+      .toEqual([]);
+  });
+
   it('turns HTML into a concise text preview', () => {
     const text = stripHtml('<style>.x{}</style><p>Hello&nbsp;<b>world</b></p>');
     expect(text).toBe('Hello world');
     expect(makePreview('a'.repeat(180), 20)).toHaveLength(20);
+  });
+
+  it('builds a short purpose label without repeating the code', () => {
+    expect(makeVerificationPurpose('Your ChatGPT login code is 482913', 'OpenAI <noreply@openai.com>', ['482913']))
+      .toBe('Your ChatGPT login code is');
   });
 });
