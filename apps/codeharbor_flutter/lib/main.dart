@@ -3,22 +3,11 @@ import 'package:flutter/material.dart';
 import 'app_controller.dart';
 import 'ui/home_screen.dart';
 
-const _smokeTestBuild = bool.fromEnvironment('CODEHARBOR_SMOKE');
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final controller = AppController();
   await controller.initialize();
   runApp(CodeHarborApp(controller: controller));
-  if (_smokeTestBuild) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      debugPrint(
-        controller.startupError == null
-            ? 'CODEHARBOR_SMOKE_READY'
-            : 'CODEHARBOR_SMOKE_STARTUP_FAILED',
-      );
-    });
-  }
 }
 
 class CodeHarborApp extends StatelessWidget {

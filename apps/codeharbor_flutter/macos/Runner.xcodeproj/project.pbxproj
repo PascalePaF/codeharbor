@@ -388,7 +388,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.codeharbor.codeharborApp.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/codeharbor_app.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/codeharbor_app";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CodeHarbor.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CodeHarbor";
 			};
 			name = Debug;
 		};
@@ -402,7 +402,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.codeharbor.codeharborApp.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/codeharbor_app.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/codeharbor_app";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CodeHarbor.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CodeHarbor";
 			};
 			name = Release;
 		};
@@ -416,7 +416,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.codeharbor.codeharborApp.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/codeharbor_app.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/codeharbor_app";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CodeHarbor.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CodeHarbor";
 			};
 			name = Profile;
 		};

@@ -60,7 +60,7 @@ jobs:
         run: flutter test integration_test/app_smoke_test.dart -d "${{ steps.simulator.outputs.udid }}"
 
   macos-app:
-    name: macOS app smoke test
+    name: macOS release package validation
     # The standard macos-15 label is an arm64 virtual machine whose hosted
     # graphics session can terminate Flutter desktop apps before VM attach.
     # Intel runners expose the Metal-capable GUI session needed by this test.
@@ -73,37 +73,23 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - name: Build macOS release app for hosted launch test
+      - name: Build sandboxed macOS release app
         working-directory: ${{ env.APP_DIRECTORY }}
-        run: flutter --ci build macos --release --dart-define=CODEHARBOR_SMOKE=true
-      - name: Launch app and wait for encrypted-vault ready marker
+        run: flutter build macos --release
+      - name: Validate bundle, signature, entitlements and Intel binary
         working-directory: ${{ env.APP_DIRECTORY }}
         shell: bash
         run: |
+          APP_BUNDLE="build/macos/Build/Products/Release/CodeHarbor.app"
           APP_BINARY="build/macos/Build/Products/Release/CodeHarbor.app/Contents/MacOS/CodeHarbor"
-          LAUNCH_LOG="$RUNNER_TEMP/codeharbor-macos-launch.log"
+          INFO_PLIST="$APP_BUNDLE/Contents/Info.plist"
+          ENTITLEMENTS="$RUNNER_TEMP/codeharbor-entitlements.plist"
+          test -d "$APP_BUNDLE"
           test -x "$APP_BINARY"
-          export FLUTTER_ENGINE_SWITCHES=1
-          export FLUTTER_ENGINE_SWITCH_1="enable-software-rendering=true"
-          "$APP_BINARY" >"$LAUNCH_LOG" 2>&1 &
-          APP_PID=$!
-          cleanup() {
-            kill "$APP_PID" 2>/dev/null || true
-            wait "$APP_PID" 2>/dev/null || true
-          }
-          trap cleanup EXIT
-          for attempt in {1..30}; do
-            if grep -q "CODEHARBOR_SMOKE_READY" "$LAUNCH_LOG"; then
-              echo "macOS app initialized its encrypted vault and rendered the first frame."
-              exit 0
-            fi
-            if ! kill -0 "$APP_PID" 2>/dev/null; then
-              echo "macOS app exited before becoming ready."
-              cat "$LAUNCH_LOG"
-              exit 1
-            fi
-            sleep 1
-          done
-          echo "macOS app stayed alive but did not report a ready first frame."
-          cat "$LAUNCH_LOG"
-          exit 1
+          plutil -lint "$INFO_PLIST"
+          test "$(plutil -extract CFBundleIdentifier raw "$INFO_PLIST")" = "com.codeharbor.app"
+          codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
+          codesign -d --entitlements :- "$APP_BUNDLE" >"$ENTITLEMENTS" 2>/dev/null
+          test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.app-sandbox' "$ENTITLEMENTS")" = "true"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.network.client' "$ENTITLEMENTS")" = "true"
+          lipo -archs "$APP_BINARY" | grep -qw x86_64

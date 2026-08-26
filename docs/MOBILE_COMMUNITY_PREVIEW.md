@@ -45,7 +45,7 @@ flutter build apk --debug
 
 - Android job 启动 API 35 模拟器，并运行 `integration_test/app_smoke_test.dart`。
 - iOS job 启动 GitHub macOS runner 中可用的 iPhone Simulator，并运行同一个烟雾测试。
-- macOS job 在 GitHub 的 Intel macOS runner 上以软件渲染直接启动 Release/AOT 应用，并等待 Keychain/保险库初始化与首帧就绪标记；普通 Apple 构建任务同时覆盖 arm64 编译。这样不依赖托管机器缺失的 Metal 通道、Debug JIT 权限和不稳定的 Flutter VM 调试附着器。
+- macOS job 在 GitHub 的 Intel macOS runner 上构建 Release/AOT 应用，并校验应用包、Bundle ID、代码签名结构、沙箱网络权限与 x86_64 可执行文件；普通 Apple 构建任务同时覆盖 arm64 编译。GitHub 的标准托管 Mac 会在桌面应用首帧前强制终止图形进程，因此真实启动、Keychain 和窗口交互仍由社区实体 Mac 测试覆盖，不能把云端编译冒充真机结论。
 
 GitHub 托管 runner 会为每个任务提供干净的临时环境；构建产物可作为 workflow artifact 下载。参考 [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners) 和 [workflow artifacts](https://docs.github.com/en/actions/concepts/workflows-and-actions/workflow-artifacts)。
 
