@@ -72,4 +72,6 @@ jobs:
           cache: true
       - name: Run macOS integration smoke test
         working-directory: ${{ env.APP_DIRECTORY }}
-        run: flutter test integration_test/app_smoke_test.dart -d macos
+        # --ci makes Flutter generate temporary entitlements with sandboxing
+        # disabled, avoiding the unsigned-app approval dialog on hosted macOS.
+        run: flutter --ci test integration_test/app_smoke_test.dart -d macos
