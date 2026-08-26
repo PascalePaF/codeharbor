@@ -5,6 +5,7 @@
 | Version | Supported |
 | --- | --- |
 | 1.0.x | Yes |
+| 1.1.0-alpha.x mobile preview | Security reports accepted; not production-ready |
 
 ## Reporting a vulnerability
 

@@ -14,6 +14,19 @@ body:
     validations:
       required: true
   - type: dropdown
+    id: platform
+    attributes:
+      label: 平台
+      options:
+        - Windows 10/11
+        - Android
+        - iPhone / iPad
+        - macOS Apple Silicon
+        - macOS Intel
+        - GitHub Actions
+    validations:
+      required: true
+  - type: dropdown
     id: area
     attributes:
       label: 功能区域

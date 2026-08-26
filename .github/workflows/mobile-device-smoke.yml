@@ -1,0 +1,75 @@
+name: Mobile simulator smoke tests
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.38.9"
+  APP_DIRECTORY: apps/codeharbor_flutter
+
+jobs:
+  android-emulator:
+    name: Android emulator smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Enable KVM acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run Android integration smoke test
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: cd apps/codeharbor_flutter && flutter test integration_test/app_smoke_test.dart -d emulator-5554
+
+  ios-simulator:
+    name: iPhone simulator smoke test
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Boot an available iPhone simulator
+        id: simulator
+        run: |
+          UDID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid')
+          test -n "$UDID" -a "$UDID" != "null"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+      - name: Run iOS integration smoke test
+        working-directory: ${{ env.APP_DIRECTORY }}
+        run: flutter test integration_test/app_smoke_test.dart -d "${{ steps.simulator.outputs.udid }}"
+
+  macos-app:
+    name: macOS app smoke test
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Run macOS integration smoke test
+        working-directory: ${{ env.APP_DIRECTORY }}
+        run: flutter test integration_test/app_smoke_test.dart -d macos

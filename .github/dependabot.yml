@@ -14,3 +14,12 @@ updates:
     schedule:
       interval: monthly
     labels: [dependencies, github-actions]
+  - package-ecosystem: pub
+    directory: /apps/codeharbor_flutter
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:30"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    labels: [dependencies, mobile]

@@ -1,0 +1,59 @@
+name: Mobile / macOS device test
+description: 提交 Android、iPhone/iPad 或 macOS 的脱敏社区测试结果
+title: "[Device Test]: "
+labels: [mobile, triage]
+body:
+  - type: markdown
+    attributes:
+      value: 请只用测试邮箱和测试 2FA 项目。不要上传真实邮箱地址、密码、授权码、OAuth2 令牌、TOTP 密钥、邮件原文、验证码或 `.chbackup` 文件。
+  - type: input
+    id: build
+    attributes:
+      label: 构建版本
+      description: 例如 1.1.0-alpha.1+4，或 Actions 运行链接。
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 平台
+      options:
+        - Android 24–37 实体设备
+        - Android Emulator
+        - iPhone / iPad 实体设备
+        - iOS Simulator
+        - macOS Apple Silicon
+        - macOS Intel
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 系统与设备
+      placeholder: Android 15 / Pixel 8；或 macOS 15 / M2
+    validations:
+      required: true
+  - type: checkboxes
+    id: coverage
+    attributes:
+      label: 已测试项目
+      options:
+        - label: 首次启动与本机保险库
+        - label: 添加和显示 6 位 TOTP
+        - label: 加密备份导出与导入
+        - label: 单邮箱 IMAP 连接和扫描
+        - label: 扫描全部邮箱
+        - label: 黑夜 / 白天主题与滚动
+  - type: textarea
+    id: result
+    attributes:
+      label: 脱敏结果与复现步骤
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 隐私确认
+      options:
+        - label: 我已确认提交内容和附件不包含任何真实凭据、密钥、验证码、邮件原文或备份文件。
+          required: true

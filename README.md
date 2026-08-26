@@ -4,18 +4,31 @@
 
 <h1 align="center">CodeHarbor 验证码港</h1>
 
-<p align="center">本地优先的 Windows 多邮箱验证码收件箱与 TOTP 2FA 管理器</p>
+<p align="center">本地优先的多邮箱验证码收件箱与 TOTP 2FA 管理器</p>
 
 <p align="center">
   <a href="https://github.com/PascalePaF/codeharbor/releases/latest"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/PascalePaF/codeharbor?style=flat-square"></a>
   <a href="https://github.com/PascalePaF/codeharbor/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/PascalePaF/codeharbor/ci.yml?branch=main&style=flat-square&label=CI"></a>
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20x64-2563eb?style=flat-square">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Android%20%7C%20iOS%20%7C%20macOS-2563eb?style=flat-square">
   <img alt="Version" src="https://img.shields.io/badge/version-V1.0.2-16825d?style=flat-square">
 </p>
 
 ![CodeHarbor 验证码工作台](docs/screenshots/overview.png)
 
 > CodeHarbor 只适用于你本人拥有或已获明确授权管理的邮箱与 2FA 项目。项目不提供自动登录、账号轮换、绕过平台限额或规避服务条款的功能。
+
+## 跨平台社区预览
+
+Android、iPhone/iPad 和 macOS 客户端已经进入 `1.1.0-alpha.1` 社区预览，源码位于 [`apps/codeharbor_flutter`](apps/codeharbor_flutter)。它不是简单网页壳，而是包含本机加密保险库、只读 IMAP 扫描、TOTP 和与 Windows V1.0.2 兼容的 `.chbackup` 导入导出。
+
+| 平台 | 当前状态 | 获取方式 |
+| --- | --- | --- |
+| Windows 10/11 x64 | V1.0.2 稳定版 | [Releases](https://github.com/PascalePaF/codeharbor/releases/latest) |
+| Android | 社区 Debug APK，可安装测试 | Mobile CI / Community Preview Release artifact |
+| iPhone / iPad | iOS Simulator 开发预览 | Mobile CI artifact；实体设备仍需 Apple 签名 |
+| macOS | 未签名开发预览 | Mobile CI artifact；正式分发仍需签名与公证 |
+
+本仓库会在 GitHub 云端自动完成 Android、iOS Simulator 和 macOS 编译，因此维护者不需要本地拥有 Mac 或手机模拟器。真机覆盖、Apple 签名、公证和各邮箱测试由社区协作完成。具体边界与参与方式见 [Android、iPhone 与 macOS 社区预览](docs/MOBILE_COMMUNITY_PREVIEW.md)。
 
 ## 核心能力
 
@@ -111,6 +124,18 @@ npm run dist        # Windows 安装版、便携版和更新清单
 
 构建产物位于 `release/`。进程边界见 [架构说明](docs/ARCHITECTURE.md)。
 
+跨平台客户端：
+
+```powershell
+cd apps/codeharbor_flutter
+flutter pub get
+flutter analyze
+flutter test
+flutter build apk --debug
+```
+
+iOS 与 macOS 的编译和模拟器烟雾测试由 GitHub Actions 的 macOS runner 完成；无需在 Windows 上安装 Apple 虚拟机。
+
 ## 已知限制
 
 - 只扫描 `INBOX`，不遍历垃圾邮件、归档或自定义文件夹。
@@ -118,6 +143,7 @@ npm run dist        # Windows 安装版、便携版和更新清单
 - 验证码由本地规则识别。为减少误报，没有登录/验证语义的普通数字会被忽略。
 - 自动更新仅适用于 Windows 安装版；便携版需下载新文件。
 - 安装包暂未使用商业代码签名证书。
+- Android、iOS 与 macOS 当前为社区开发预览，尚未完成正式商店签名、Apple 公证和多型号真机覆盖。
 
 ## 项目管理与许可证
 
@@ -125,6 +151,7 @@ npm run dist        # Windows 安装版、便携版和更新清单
 - [贡献说明](CONTRIBUTING.md)
 - [安全策略](SECURITY.md)
 - [V1.0.2 发布说明](docs/RELEASE_NOTES-v1.0.2.md)
+- [跨平台社区预览与测试](docs/MOBILE_COMMUNITY_PREVIEW.md)
 
 本仓库公开用于透明审查和版本发布，但当前并未授予复制、修改或再分发许可；详见 [LICENSE](LICENSE)。请勿在 Issue、日志或提交中包含真实密码、授权码、OAuth2 令牌、TOTP 密钥、验证码邮件原文或保险库文件。
 

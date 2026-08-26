@@ -1,0 +1,106 @@
+name: Mobile and macOS CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/codeharbor_flutter/**"
+      - ".github/workflows/mobile-*.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/codeharbor_flutter/**"
+      - ".github/workflows/mobile-*.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.38.9"
+  APP_DIRECTORY: apps/codeharbor_flutter
+
+jobs:
+  analyze-and-test:
+    name: Dart analysis and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        working-directory: ${{ env.APP_DIRECTORY }}
+        run: flutter pub get
+      - name: Analyze
+        working-directory: ${{ env.APP_DIRECTORY }}
+        run: flutter analyze
+      - name: Run unit and widget tests
+        working-directory: ${{ env.APP_DIRECTORY }}
+        run: flutter test --reporter expanded
+
+  android-build:
+    name: Android debug APK
+    needs: analyze-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build installable community APK
+        working-directory: ${{ env.APP_DIRECTORY }}
+        run: flutter build apk --debug
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: CodeHarbor-Android-community-debug
+          path: ${{ env.APP_DIRECTORY }}/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  apple-builds:
+    name: iOS Simulator and macOS builds
+    needs: analyze-and-test
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build iOS Simulator app without signing
+        working-directory: ${{ env.APP_DIRECTORY }}
+        run: flutter build ios --simulator --debug --no-codesign
+      - name: Build unsigned macOS app
+        working-directory: ${{ env.APP_DIRECTORY }}
+        run: flutter build macos --debug
+      - name: Package Apple developer previews
+        working-directory: ${{ env.APP_DIRECTORY }}
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent build/ios/iphonesimulator/Runner.app CodeHarbor-iOS-Simulator.zip
+          MAC_APP=$(find build/macos/Build/Products/Debug -maxdepth 1 -name "*.app" -print -quit)
+          test -n "$MAC_APP"
+          ditto -c -k --sequesterRsrc --keepParent "$MAC_APP" CodeHarbor-macOS-unsigned.zip
+      - name: Upload iOS Simulator artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: CodeHarbor-iOS-Simulator-community-debug
+          path: ${{ env.APP_DIRECTORY }}/CodeHarbor-iOS-Simulator.zip
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: CodeHarbor-macOS-community-unsigned
+          path: ${{ env.APP_DIRECTORY }}/CodeHarbor-macOS-unsigned.zip
+          if-no-files-found: error
+          retention-days: 14

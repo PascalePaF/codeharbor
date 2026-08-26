@@ -2,6 +2,21 @@
 
 本项目遵循语义化版本。
 
+## [1.1.0-alpha.1] - 2026-08-26
+
+### Added
+
+- 新增一套 Flutter 跨平台客户端，覆盖 Android、iPhone/iPad 和 macOS。
+- 新增本机加密保险库、只读 IMAP 验证码扫描、RFC 6238 TOTP 和响应式明暗主题界面。
+- 新增与 Windows V1.0.2 兼容的密码加密 `.chbackup` 导入导出。
+- 新增 Android 与 Apple 云端构建、Android/iPhone 模拟器烟雾测试和社区预发布工作流。
+- 新增跨平台测试边界、真机测试矩阵和安全提交指南。
+
+### Security
+
+- Android Keystore / Apple Keychain 仅保存随机设备主密钥，账户凭据与 TOTP 密钥继续由 AES-256-GCM 加密。
+- 社区构建明确标记为 Debug、Simulator 或未签名预览，不与商店正式版本混淆。
+
 ## [1.0.2] - 2026-08-26
 
 ### Added

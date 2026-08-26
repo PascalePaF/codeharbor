@@ -1,0 +1,81 @@
+name: Mobile community preview release
+
+on:
+  push:
+    tags:
+      - "mobile-v*"
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: "3.38.9"
+  APP_DIRECTORY: apps/codeharbor_flutter
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Verify and build Android preview
+        working-directory: ${{ env.APP_DIRECTORY }}
+        run: |
+          flutter analyze
+          flutter test
+          flutter build apk --debug
+          cp build/app/outputs/flutter-apk/app-debug.apk CodeHarbor-Android-community-debug.apk
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android-preview
+          path: ${{ env.APP_DIRECTORY }}/CodeHarbor-Android-community-debug.apk
+
+  apple:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build Apple developer previews
+        working-directory: ${{ env.APP_DIRECTORY }}
+        run: |
+          flutter build ios --simulator --debug --no-codesign
+          flutter build macos --debug
+          ditto -c -k --sequesterRsrc --keepParent build/ios/iphonesimulator/Runner.app CodeHarbor-iOS-Simulator.zip
+          MAC_APP=$(find build/macos/Build/Products/Debug -maxdepth 1 -name "*.app" -print -quit)
+          test -n "$MAC_APP"
+          ditto -c -k --sequesterRsrc --keepParent "$MAC_APP" CodeHarbor-macOS-unsigned.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: apple-previews
+          path: |
+            ${{ env.APP_DIRECTORY }}/CodeHarbor-iOS-Simulator.zip
+            ${{ env.APP_DIRECTORY }}/CodeHarbor-macOS-unsigned.zip
+
+  publish-prerelease:
+    needs: [android, apple]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Publish clearly labeled community preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" artifacts/* \
+            --verify-tag \
+            --prerelease \
+            --title "CodeHarbor Mobile & macOS Community Preview" \
+            --notes-file docs/MOBILE_PREVIEW_RELEASE_NOTES.md
