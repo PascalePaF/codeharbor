@@ -283,7 +283,8 @@ async function createWindow(): Promise<void> {
       window.codeHarbor.totp.save({
         label: '安全测试账户', issuer: 'CodeHarbor', secret: 'JBSWY3DPEHPK3PXP',
         digits: 6, period: 30, algorithm: 'SHA1'
-      })
+      }),
+      window.codeHarbor.settings.update({ scanWindowHours: 5 })
     ])`);
     const smokeAccount = vault.listAccounts().find((account) => account.email === 'smoke-test@163.com');
     if (!smokeAccount) throw new Error('Smoke mailbox account was not created');
@@ -325,6 +326,20 @@ async function createWindow(): Promise<void> {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 1100));
     const totpImage = await mainWindow.webContents.capturePage();
     await writeFile(output.replace(/\.png$/i, '-totp.png'), totpImage.toPNG());
+
+    await mainWindow.webContents.executeJavaScript(`
+      document.querySelector('.totp-intro .page-actions button')?.click()
+    `);
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 220));
+    const qrModalTitle = await mainWindow.webContents.executeJavaScript(`document.querySelector('.modal-header h2')?.textContent`);
+    if (!String(qrModalTitle).includes('扫描验证器二维码')) {
+      throw new Error('Authenticator QR import modal did not open');
+    }
+    const qrImportImage = await mainWindow.webContents.capturePage();
+    await writeFile(output.replace(/\.png$/i, '-totp-qr-import.png'), qrImportImage.toPNG());
+    await mainWindow.webContents.executeJavaScript(`
+      document.querySelector('.modal-header .icon-button')?.click()
+    `);
 
     await mainWindow.webContents.executeJavaScript(`
       document.querySelector('.totp-intro .button.primary')?.click()

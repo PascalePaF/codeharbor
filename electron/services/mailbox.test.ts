@@ -48,7 +48,7 @@ describe('mailbox connection errors', () => {
       getEnabledAccountIds: () => [account.id],
       getSettings: () => ({
         pollIntervalMinutes: 2,
-        scanWindowHours: 24,
+        scanWindowHours: 5,
         maxMessagesPerAccount: 30,
         autoRefresh: false,
         theme: 'dark' as const,
@@ -57,13 +57,13 @@ describe('mailbox connection errors', () => {
     } as unknown as VaultStore;
     let fetchCount = 0;
     const source = Buffer.from([
-      'From: Example Security <security@example.com>',
+      'From: OpenAI <otp@tm1.openai.com>',
       'To: test@example.com',
-      'Subject: Your verification code is 482913',
+      'Subject: Your ChatGPT login code is 482913',
       'Date: Mon, 24 Aug 2026 10:00:00 +0000',
       'Content-Type: text/plain; charset=utf-8',
       '',
-      'Use verification code 482913 to sign in.',
+      'Use this ChatGPT verification code 482913 to sign in.',
     ].join('\r\n'));
     const service = new MailboxService(vault, () => ({
       connect: async () => undefined,

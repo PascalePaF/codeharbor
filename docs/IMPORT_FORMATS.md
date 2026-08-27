@@ -66,6 +66,17 @@ CSV / TXT 适合首次批量新增。跨电脑迁移时可在邮箱或 2FA 页�
 
 ## TOTP 2FA
 
+### 验证器二维码
+
+- Windows 与 macOS：在“2FA 动态码”页面选择“二维码图片导入/图片导入”，上传 PNG、JPG、WEBP 或 BMP 原图。
+- Android 与 iPhone：选择“扫码导入”打开相机，或选择“图片导入”读取本机图片。
+- 支持单项 `otpauth://totp` 二维码，以及 Google Authenticator 导出的 `otpauth-migration://` 批量二维码。
+- Google Authenticator 如果显示多张迁移二维码，需要按照界面显示的批次逐张重复导入。
+
+二维码图片与密钥不会上传或写入日志。确认页只显示账户名称、服务商、位数和算法；HOTP、登录二维码、账户恢复二维码及不支持算法会被拒绝或明确忽略。
+
+### 文本与文件
+
 可每行粘贴一个标准链接：
 
 ```text
@@ -93,6 +104,7 @@ label,secret,issuer,digits,period,algorithm
 ## 安全提示
 
 - 导入文件包含可直接访问邮箱或生成 2FA 的敏感信息。
+- 验证器导出二维码本身等同于 2FA 密钥，不要截图分享或提交到 Issue。
 - 完成导入后请安全删除明文文件，不要上传到网盘、聊天工具、Issue 或 Git 仓库。
 - `.chbackup` 已加密，但仍应像密码库一样保管；备份密码丢失后无法恢复。
 - 仓库的 `.gitignore` 已忽略 `.env`、密钥与证书文件，但不能替代人工检查。

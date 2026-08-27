@@ -186,7 +186,7 @@ class TotpEntry {
 class AppSettings {
   const AppSettings({
     this.pollIntervalMinutes = 2,
-    this.scanWindowHours = 24,
+    this.scanWindowHours = 5,
     this.maxMessagesPerAccount = 30,
     this.autoRefresh = false,
     this.theme = 'dark',
@@ -223,7 +223,7 @@ class AppSettings {
   factory AppSettings.fromJson(Map<String, Object?> json) => AppSettings(
     pollIntervalMinutes: ((json['pollIntervalMinutes'] as num?)?.toInt() ?? 2)
         .clamp(1, 60),
-    scanWindowHours: ((json['scanWindowHours'] as num?)?.toInt() ?? 24).clamp(
+    scanWindowHours: ((json['scanWindowHours'] as num?)?.toInt() ?? 5).clamp(
       1,
       168,
     ),

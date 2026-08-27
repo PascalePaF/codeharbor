@@ -2,6 +2,11 @@ final _keywords = RegExp(
   r'verification code|security code|login code|sign-in code|one-time code|one time password|passcode|otp|验证码|校验码|动态码|登录码|安全码|認証コード|確認コード|인증 코드|sign in|log in|authenticate|confirm your identity|confirm your email|登录|身份验证|验证身份|確認|認証',
   caseSensitive: false,
 );
+const _chatGptOtpSenders = {'noreply@tm.openai.com', 'otp@tm1.openai.com'};
+final _chatGptOtpContext = RegExp(
+  r'chatgpt|verification|security|login|log[ -]?in|sign[ -]?in|one[ -]?time|passcode|\botp\b|验证码|登录|验证|認証|確認|인증',
+  caseSensitive: false,
+);
 
 String stripHtml(String html) => html
     .replaceAll(RegExp(r'<style[\s\S]*?</style>', caseSensitive: false), ' ')
@@ -55,6 +60,38 @@ List<String> extractVerificationCodes(String subject, String body) {
   final ordered = scores.entries.toList()
     ..sort((a, b) => b.value.compareTo(a.value));
   return ordered.take(5).map((item) => item.key).toList(growable: false);
+}
+
+bool isOfficialChatGptOtpSender(String sender) {
+  final matches = RegExp(
+    r'[A-Z0-9._%+-]+@[A-Z0-9.-]+',
+    caseSensitive: false,
+  ).allMatches(sender).toList();
+  final address = matches.isEmpty ? '' : matches.last.group(0)!.toLowerCase();
+  return _chatGptOtpSenders.contains(address);
+}
+
+List<String> extractChatGptLoginCodes(
+  String sender,
+  String subject,
+  String body,
+) {
+  if (!isOfficialChatGptOtpSender(sender)) return const [];
+  final results = <String>[];
+  for (final text in [subject, body]) {
+    for (final match in RegExp(
+      r'(?<!\d)(\d(?:[\s-]?\d){5})(?!\d)',
+    ).allMatches(text)) {
+      final raw = match.group(1) ?? match.group(0) ?? '';
+      final start = (match.start - 128).clamp(0, text.length);
+      final end = (match.end + 128).clamp(0, text.length);
+      if (!_chatGptOtpContext.hasMatch(text.substring(start, end))) continue;
+      final code = raw.replaceAll(RegExp(r'[\s-]'), '');
+      if (!results.contains(code)) results.add(code);
+      if (results.length >= 3) return results;
+    }
+  }
+  return results;
 }
 
 String makeVerificationPurpose(

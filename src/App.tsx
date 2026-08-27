@@ -8,6 +8,7 @@ import { ToastStack, type ToastMessage } from './components/Toast';
 import { Topbar } from './components/Topbar';
 import { TotpImportModal } from './components/TotpImportModal';
 import { TotpModal } from './components/TotpModal';
+import { TotpQrImportModal } from './components/TotpQrImportModal';
 import { friendlyError } from './lib/format';
 import { AccountsPage } from './pages/AccountsPage';
 import { InboxPage } from './pages/InboxPage';
@@ -31,6 +32,7 @@ type ModalState =
   | { type: 'mail-import' }
   | { type: 'totp'; entry?: PublicTotpEntry }
   | { type: 'totp-import' }
+  | { type: 'totp-qr-import' }
   | { type: 'backup-export'; scope: BackupScope }
   | { type: 'backup-import'; scope: BackupScope }
   | null;
@@ -278,7 +280,7 @@ export default function App() {
         <div className="page-scroll">
           {page === 'inbox' && <InboxPage accounts={data.accounts} messages={messages} providers={data.providers} totpCodes={totpCodes} search={search} scanningTarget={scanningTarget} lastScan={lastScan} onScanAll={() => scanMail(false)} onScanAccount={(accountId) => scanMail(false, accountId)} onCopy={copy} onGoAccounts={() => changePage('accounts')} />}
           {page === 'accounts' && <AccountsPage accounts={data.accounts} providers={data.providers} search={search} testingId={testingId} onAdd={() => setModal({ type: 'account' })} onBulk={() => setModal({ type: 'mail-import' })} onSecureImport={() => setModal({ type: 'backup-import', scope: 'accounts' })} onSecureExport={() => setModal({ type: 'backup-export', scope: 'accounts' })} onEdit={(account) => setModal({ type: 'account', account })} onDelete={deleteAccount} onToggle={toggleAccount} onTest={testAccount} />}
-          {page === 'totp' && <TotpPage entries={data.totpEntries} codes={totpCodes} search={search} onAdd={() => setModal({ type: 'totp' })} onBulk={() => setModal({ type: 'totp-import' })} onSecureImport={() => setModal({ type: 'backup-import', scope: 'totp' })} onSecureExport={() => setModal({ type: 'backup-export', scope: 'totp' })} onEdit={(entry) => setModal({ type: 'totp', entry })} onDelete={deleteTotp} onCopy={copy} />}
+          {page === 'totp' && <TotpPage entries={data.totpEntries} codes={totpCodes} search={search} onAdd={() => setModal({ type: 'totp' })} onBulk={() => setModal({ type: 'totp-import' })} onQrImport={() => setModal({ type: 'totp-qr-import' })} onSecureImport={() => setModal({ type: 'backup-import', scope: 'totp' })} onSecureExport={() => setModal({ type: 'backup-export', scope: 'totp' })} onEdit={(entry) => setModal({ type: 'totp', entry })} onDelete={deleteTotp} onCopy={copy} />}
           {page === 'settings' && <SettingsPage settings={data.settings} vault={data.vault} providers={data.providers} version={data.version} updateState={updateState} busy={busy} onSave={saveSettings} onCheckUpdates={checkForUpdates} onExport={() => setModal({ type: 'backup-export', scope: 'all' })} onImport={() => setModal({ type: 'backup-import', scope: 'all' })} onOpenExternal={openExternal} />}
         </div>
       </main>
@@ -287,6 +289,7 @@ export default function App() {
       {modal?.type === 'mail-import' && <MailImportModal providers={data.providers} busy={busy} onClose={() => setModal(null)} onImport={bulkAccounts} />}
       {modal?.type === 'totp' && <TotpModal entry={modal.entry} busy={busy} onClose={() => setModal(null)} onSave={saveTotp} />}
       {modal?.type === 'totp-import' && <TotpImportModal busy={busy} onClose={() => setModal(null)} onImport={bulkTotp} />}
+      {modal?.type === 'totp-qr-import' && <TotpQrImportModal busy={busy} onClose={() => setModal(null)} onImport={bulkTotp} />}
       {modal?.type === 'backup-export' && <BackupModal mode="export" scope={modal.scope} busy={busy} onClose={() => setModal(null)} onSubmit={(password) => exportBackup(modal.scope, password)} />}
       {modal?.type === 'backup-import' && <BackupModal mode="import" scope={modal.scope} busy={busy} onClose={() => setModal(null)} onSubmit={(password) => importBackup(modal.scope, password)} />}
       <ToastStack toasts={toasts} dismiss={(id) => setToasts((items) => items.filter((item) => item.id !== id))} />

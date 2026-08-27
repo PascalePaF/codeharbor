@@ -4,13 +4,13 @@
 
 <h1 align="center">CodeHarbor 验证码港</h1>
 
-<p align="center">本地优先的多邮箱验证码收件箱与 TOTP 2FA 管理器</p>
+<p align="center">本地优先的 ChatGPT 登录验证码收件箱与 TOTP 2FA 管理器</p>
 
 <p align="center">
   <a href="https://github.com/PascalePaF/codeharbor/releases/latest"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/PascalePaF/codeharbor?style=flat-square"></a>
   <a href="https://github.com/PascalePaF/codeharbor/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/PascalePaF/codeharbor/ci.yml?branch=main&style=flat-square&label=CI"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Android%20%7C%20iOS%20%7C%20macOS-2563eb?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-V1.0.2-16825d?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-V1.0.3-16825d?style=flat-square">
 </p>
 
 ![CodeHarbor 验证码工作台](docs/screenshots/overview.png)
@@ -19,11 +19,11 @@
 
 ## 跨平台社区预览
 
-Android、iPhone/iPad 和 macOS 客户端已经进入 `1.1.0-alpha.1` 社区预览，源码位于 [`apps/codeharbor_flutter`](apps/codeharbor_flutter)。它不是简单网页壳，而是包含本机加密保险库、只读 IMAP 扫描、TOTP 和与 Windows V1.0.2 兼容的 `.chbackup` 导入导出。
+Android、iPhone/iPad 和 macOS 客户端已同步到 `1.0.3` 社区预览，源码位于 [`apps/codeharbor_flutter`](apps/codeharbor_flutter)。它不是简单网页壳，而是包含本机加密保险库、ChatGPT OTP 专用只读 IMAP 扫描、验证器二维码导入、TOTP 和与 Windows V1.0.2 兼容的 `.chbackup` 导入导出。
 
 | 平台 | 当前状态 | 获取方式 |
 | --- | --- | --- |
-| Windows 10/11 x64 | V1.0.2 稳定版 | [Releases](https://github.com/PascalePaF/codeharbor/releases/latest) |
+| Windows 10/11 x64 | V1.0.3 稳定版 | [Releases](https://github.com/PascalePaF/codeharbor/releases/latest) |
 | Android | 社区 Debug APK，可安装测试 | Mobile CI / Community Preview Release artifact |
 | iPhone / iPad | iOS Simulator 开发预览 | Mobile CI artifact；实体设备仍需 Apple 签名 |
 | macOS | 未签名开发预览 | Mobile CI artifact；正式分发仍需签名与公证 |
@@ -34,9 +34,10 @@ Android、iPhone/iPad 和 macOS 客户端已经进入 `1.1.0-alpha.1` 社区预�
 
 - 集中管理 163、126、QQ / Foxmail、Gmail、阿里个人、阿里企业、Microsoft Outlook / 365、Mail.com 和自定义 IMAP 邮箱。
 - CSV / TXT 批量导入最多 500 个邮箱或 2FA 项目，并支持邮箱、2FA 各自独立的加密导入和加密导出。
-- 三栏验证码工作台：左侧逐个查询邮箱，中间只显示发件方、验证码与用途，右侧显示实时 TOTP。
-- “立即扫描全部邮箱”以最多 3 个并发只读连接批量扫描；普通邮件、订单号和跟踪号不会进入验证码结果。
+- 三栏验证码工作台：左侧逐个查询邮箱，中间只显示 ChatGPT 登录验证码，右侧显示实时 TOTP。
+- “立即扫描全部邮箱”以最多 3 个并发只读连接批量扫描；只接受 OpenAI 官方 OTP 地址发出的登录语境 6 位码，其他邮件全部忽略。
 - Base32 密钥或完整 `otpauth://` 链接生成 TOTP，支持 SHA1 / SHA256 / SHA512、6 / 8 位及 15–120 秒周期。
+- 支持验证器二维码导入：电脑上传图片，Android/iPhone 使用相机或图片；兼容标准 TOTP 和 Google Authenticator 批量迁移二维码。
 - 邮箱凭据和 2FA 密钥由 Windows DPAPI 等系统安全存储加密；应用没有遥测、云同步或 CodeHarbor 后端。
 - `.chbackup` 使用 scrypt 密码派生和 AES-256-GCM 认证加密，可在不同电脑之间迁移。
 - 安装版从 GitHub Releases 自动检查和下载新版本，下载完成后自动更新并重新启动。
@@ -50,11 +51,11 @@ Android、iPhone/iPad 和 macOS 客户端已经进入 `1.1.0-alpha.1` 社区预�
 
 请从 [最新 Release](https://github.com/PascalePaF/codeharbor/releases/latest) 下载：
 
-- `CodeHarbor-Setup-1.0.2-x64.exe`：推荐的 Windows 安装版，支持以后直接在软件内部自动更新。
-- `CodeHarbor-Portable-1.0.2-x64.exe`：免安装便携版；因没有安装上下文，不支持内部自动替换。
+- `CodeHarbor-Setup-1.0.3-x64.exe`：推荐的 Windows 安装版，支持以后直接在软件内部自动更新。
+- `CodeHarbor-Portable-1.0.3-x64.exe`：免安装便携版；因没有安装上下文，不支持内部自动替换。
 - `SHA256SUMS.txt`：安装包校验值。
 
-V1.0.2 是自动更新功能的起点。旧版本没有更新程序，因此需要手动安装 V1.0.2 一次；之后安装版可自动升级到后续版本。当前构建尚未使用商业代码签名证书，Windows SmartScreen 首次运行时可能显示提示。
+V1.0.2 是自动更新功能的起点；已安装 V1.0.2 的安装版可以在软件内升级到 V1.0.3。当前构建尚未使用商业代码签名证书，Windows SmartScreen 首次运行时可能显示提示。
 
 默认数据位置：
 
@@ -67,8 +68,8 @@ V1.0.2 是自动更新功能的起点。旧版本没有更新程序，因此需�
 
 1. 在邮箱官网开启 IMAP，并生成该服务商要求的客户端授权码、应用专用密码或 OAuth2 访问令牌。
 2. 在“邮箱账户”页面添加邮箱，先执行“测试”确认连接成功。
-3. 在“验证码收件箱”左侧查询单个邮箱，或点击“立即扫描全部邮箱”。
-4. 在“2FA 动态码”页面输入 Base32 密钥或粘贴 `otpauth://` 链接；通常选择 6 位、30 秒、SHA1。
+3. 在“验证码收件箱”左侧查询单个邮箱，或点击“立即扫描全部邮箱”；新安装默认只查最近 5 小时，并只显示 ChatGPT 登录 OTP。
+4. 在“2FA 动态码”页面输入 Base32 密钥、粘贴 `otpauth://` 链接，或通过二维码图片/手机相机导入验证器项目。
 5. 换电脑前，为邮箱或 2FA 单独导出加密备份，也可以在设置中导出全部数据。
 
 完整格式见 [批量导入格式](docs/IMPORT_FORMATS.md)，服务商准备步骤见 [邮箱服务商指南](docs/PROVIDERS.md)。
@@ -100,6 +101,8 @@ V1.0.2 是自动更新功能的起点。旧版本没有更新程序，因此需�
 
 - Electron 渲染进程启用上下文隔离和沙箱，禁用 Node.js 集成，仅暴露最小化 IPC 接口。
 - IMAP 强制 TLS 1.2 及以上并校验证书，以只读方式打开 `INBOX`，不会将邮件标记为已读。
+- ChatGPT OTP 只接受 OpenAI 官方列出的 `noreply@tm.openai.com` 与 `otp@tm1.openai.com`，并且必须是登录语境中的 6 位码。
+- 验证器二维码完全在本机解码，不上传、不写日志，导入预览不显示密钥。
 - 单封邮件最多解析 1 MiB，并限制 MIME 嵌套与邮件头大小。
 - 敏感字段不写入日志；仓库和发布包不包含真实账户、密钥或保险库文件。
 
@@ -140,7 +143,8 @@ iOS 与 macOS 的编译和模拟器烟雾测试由 GitHub Actions 的 macOS runn
 
 - 只扫描 `INBOX`，不遍历垃圾邮件、归档或自定义文件夹。
 - 当前不内置 Google / Microsoft OAuth 授权页面和令牌刷新；需要填写现有访问令牌，Gmail 也可使用应用专用密码。
-- 验证码由本地规则识别。为减少误报，没有登录/验证语义的普通数字会被忽略。
+- 验证码收件箱当前固定为 ChatGPT 登录专用，不显示其他网站或服务的邮箱验证码。
+- Google Authenticator 的多张迁移二维码需要逐张扫描；HOTP 当前不支持。
 - 自动更新仅适用于 Windows 安装版；便携版需下载新文件。
 - 安装包暂未使用商业代码签名证书。
 - Android、iOS 与 macOS 当前为社区开发预览，尚未完成正式商店签名、Apple 公证和多型号真机覆盖。
@@ -151,6 +155,7 @@ iOS 与 macOS 的编译和模拟器烟雾测试由 GitHub Actions 的 macOS runn
 - [贡献说明](CONTRIBUTING.md)
 - [安全策略](SECURITY.md)
 - [V1.0.2 发布说明](docs/RELEASE_NOTES-v1.0.2.md)
+- [V1.0.3 发布说明](docs/RELEASE_NOTES-v1.0.3.md)
 - [跨平台社区预览与测试](docs/MOBILE_COMMUNITY_PREVIEW.md)
 
 本仓库公开用于透明审查和版本发布，但当前并未授予复制、修改或再分发许可；详见 [LICENSE](LICENSE)。请勿在 Issue、日志或提交中包含真实密码、授权码、OAuth2 令牌、TOTP 密钥、验证码邮件原文或保险库文件。

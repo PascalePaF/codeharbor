@@ -1,8 +1,13 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../app_controller.dart';
+import '../core/authenticator_qr.dart';
 import '../core/backup_codec.dart';
 import '../core/providers.dart';
 import '../core/totp.dart';
@@ -190,6 +195,8 @@ class _HomeScreenState extends State<HomeScreen> {
       controller: controller,
       search: _search,
       onAdd: _addTotp,
+      onCameraQr: _scanTotpQr,
+      onImageQr: _uploadTotpQr,
       onEdit: _editTotp,
       onDelete: _deleteTotp,
       onMessage: _message,
@@ -213,6 +220,62 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _addTotp() =>
       showTotpEditor(context, onSave: controller.saveTotp);
+
+  Future<void> _scanTotpQr() async {
+    final payload = await showAuthenticatorCameraScanner(context);
+    if (payload != null && mounted) await _importTotpQrPayload(payload);
+  }
+
+  Future<void> _uploadTotpQr() async {
+    try {
+      final picked = await FilePicker.pickFile(
+        dialogTitle: '选择验证器二维码图片',
+        type: FileType.image,
+      );
+      if (picked == null) return;
+      final path = picked.path;
+      if (path == null || path.isEmpty) {
+        throw const FormatException('当前平台没有返回可读取的图片路径');
+      }
+      final scanner = MobileScannerController(
+        autoStart: false,
+        formats: const [BarcodeFormat.qrCode],
+      );
+      BarcodeCapture? capture;
+      try {
+        capture = await scanner.analyzeImage(path);
+      } finally {
+        await scanner.dispose();
+      }
+      String? payload;
+      for (final barcode in capture?.barcodes ?? const <Barcode>[]) {
+        final value = barcode.rawValue?.trim();
+        if (value != null && value.isNotEmpty) {
+          payload = value;
+          break;
+        }
+      }
+      if (payload == null) {
+        throw const FormatException('图片中未识别到清晰的二维码，请选择原图重试');
+      }
+      if (mounted) await _importTotpQrPayload(payload);
+    } catch (error) {
+      _message(_errorText(error), error: true);
+    }
+  }
+
+  Future<void> _importTotpQrPayload(String payload) async {
+    try {
+      final result = parseAuthenticatorQrPayload(payload);
+      if (!await confirmAuthenticatorQrImport(context, result) || !mounted) {
+        return;
+      }
+      final summary = await controller.importAuthenticatorQr(result);
+      _message('二维码导入完成：新增 ${summary.created}，更新 ${summary.updated}');
+    } catch (error) {
+      _message(_errorText(error), error: true);
+    }
+  }
 
   Future<void> _editTotp(TotpEntry entry) =>
       showTotpEditor(context, entry: entry, onSave: controller.saveTotp);
@@ -365,7 +428,7 @@ class _InboxAccounts extends StatelessWidget {
       final failed = result.statuses.where((item) => !item.ok).length;
       onMessage(
         failed == 0
-            ? '扫描完成：找到 ${result.messages.length} 条验证码'
+            ? '扫描完成：找到 ${result.messages.length} 条 ChatGPT 登录验证码'
             : '扫描完成：$failed 个邮箱失败',
         error: failed > 0,
       );
@@ -438,14 +501,14 @@ class _InboxMessages extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Pane(
-    title: '验证码邮件',
-    subtitle: '${messages.length} 条，只保留发件方、验证码和用途',
+    title: 'ChatGPT 登录验证码',
+    subtitle: '${messages.length} 条，仅接受 OpenAI 官方 OTP 发件地址的 6 位码',
     compact: compact,
     children: messages.isEmpty
         ? const [
             EmptyState(
               icon: Icons.mark_email_read_outlined,
-              text: '扫描后，验证码邮件会显示在这里',
+              text: '扫描后，最近 5 小时的 ChatGPT 登录验证码会显示在这里',
             ),
           ]
         : messages
@@ -690,6 +753,8 @@ class TotpPage extends StatelessWidget {
     required this.controller,
     required this.search,
     required this.onAdd,
+    required this.onCameraQr,
+    required this.onImageQr,
     required this.onEdit,
     required this.onDelete,
     required this.onMessage,
@@ -698,6 +763,8 @@ class TotpPage extends StatelessWidget {
   final AppController controller;
   final String search;
   final VoidCallback onAdd;
+  final VoidCallback onCameraQr;
+  final VoidCallback onImageQr;
   final void Function(TotpEntry) onEdit;
   final void Function(TotpEntry) onDelete;
   final void Function(String, {bool error}) onMessage;
@@ -715,6 +782,17 @@ class TotpPage extends StatelessWidget {
           title: '2FA 动态码',
           subtitle: '支持 Base32 与 otpauth://，默认 6 位、30 秒、SHA1。',
           actions: [
+            if (Platform.isAndroid || Platform.isIOS)
+              OutlinedButton.icon(
+                onPressed: onCameraQr,
+                icon: const Icon(Icons.qr_code_scanner),
+                label: const Text('扫码导入'),
+              ),
+            OutlinedButton.icon(
+              onPressed: onImageQr,
+              icon: const Icon(Icons.image_search),
+              label: const Text('图片导入'),
+            ),
             OutlinedButton.icon(
               onPressed: () => onBackup(BackupScope.totp, false),
               icon: const Icon(Icons.file_upload_outlined),
@@ -858,6 +936,12 @@ class SettingsPage extends StatelessWidget {
           icon: Icons.manage_search,
           child: Column(
             children: [
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.verified_user_outlined),
+                title: Text('验证码过滤标准：ChatGPT 专用'),
+                subtitle: Text('只接收 OpenAI 官方 OTP 地址发出的 6 位登录验证码，其他邮件全部忽略'),
+              ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('自动刷新'),
@@ -879,7 +963,7 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
               _SliderSetting(
-                label: '邮件时间范围',
+                label: '扫描时间范围（新安装默认 5 小时）',
                 valueLabel: '${settings.scanWindowHours} 小时',
                 value: settings.scanWindowHours.toDouble(),
                 min: 1,

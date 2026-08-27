@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../core/authenticator_qr.dart';
 import '../core/backup_codec.dart';
 import '../core/providers.dart';
 import '../models/models.dart';
@@ -626,3 +628,155 @@ void _showError(BuildContext context, Object error) {
       .replaceFirst('Bad state: ', '');
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 }
+
+Future<String?> showAuthenticatorCameraScanner(BuildContext context) =>
+    Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const _AuthenticatorCameraScanner()),
+    );
+
+class _AuthenticatorCameraScanner extends StatefulWidget {
+  const _AuthenticatorCameraScanner();
+
+  @override
+  State<_AuthenticatorCameraScanner> createState() =>
+      _AuthenticatorCameraScannerState();
+}
+
+class _AuthenticatorCameraScannerState
+    extends State<_AuthenticatorCameraScanner> {
+  final _controller = MobileScannerController(
+    formats: const [BarcodeFormat.qrCode],
+    detectionSpeed: DetectionSpeed.noDuplicates,
+  );
+  bool _handled = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _detected(BarcodeCapture capture) {
+    if (_handled) return;
+    for (final barcode in capture.barcodes) {
+      final value = barcode.rawValue?.trim();
+      if (value == null || value.isEmpty) continue;
+      _handled = true;
+      Navigator.pop(context, value);
+      return;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('扫描验证器二维码'),
+      actions: [
+        IconButton(
+          tooltip: '切换闪光灯',
+          onPressed: _controller.toggleTorch,
+          icon: const Icon(Icons.flashlight_on_outlined),
+        ),
+      ],
+    ),
+    body: Stack(
+      fit: StackFit.expand,
+      children: [
+        MobileScanner(controller: _controller, onDetect: _detected),
+        IgnorePointer(
+          child: Center(
+            child: Container(
+              width: 270,
+              height: 270,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.primary,
+                  width: 3,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const Positioned(
+          left: 24,
+          right: 24,
+          bottom: 38,
+          child: SafeArea(
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(14),
+                child: Text(
+                  '对准 Google Authenticator 或其他验证器导出的二维码。二维码只在本机解析。',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<bool> confirmAuthenticatorQrImport(
+  BuildContext context,
+  AuthenticatorQrResult result,
+) async =>
+    await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('导入 ${result.entries.length} 个 2FA 项目？'),
+        content: SizedBox(
+          width: 520,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 420),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                const HelpPanel(text: '二维码与密钥不会上传。确认后将直接写入本机加密保险库，密钥不会显示在预览中。'),
+                const SizedBox(height: 12),
+                ...result.entries
+                    .take(20)
+                    .map(
+                      (entry) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.password),
+                        title: Text(entry.label),
+                        subtitle: Text(
+                          '${entry.issuer.isEmpty ? '未设置服务商' : entry.issuer} · '
+                          '${entry.digits} 位 · ${entry.algorithm.wireName}',
+                        ),
+                      ),
+                    ),
+                if (result.entries.length > 20)
+                  Text('另有 ${result.entries.length - 20} 个项目将一起导入。'),
+                ...result.warnings.map(
+                  (warning) => Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      warning,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.tertiary,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.lock_outline),
+            label: const Text('安全导入'),
+          ),
+        ],
+      ),
+    ) ??
+    false;

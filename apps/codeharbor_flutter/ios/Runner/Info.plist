@@ -24,6 +24,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>用于在本机扫描验证器导出的二维码并导入 2FA 项目。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>用于选择验证器二维码图片；图片不会上传。</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

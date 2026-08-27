@@ -2,6 +2,26 @@
 
 本项目遵循语义化版本。
 
+## [1.0.3] - 2026-08-27
+
+### Added
+
+- 新增验证器二维码导入：Windows/macOS 可上传 PNG、JPG、WEBP 或 BMP 图片，Android/iPhone 可直接使用相机扫码，也可选择图片。
+- 支持标准 `otpauth://totp` 二维码，以及 Google Authenticator 的 `otpauth-migration://` 批量迁移二维码。
+- Google 多张迁移二维码会显示当前批次；导入前只预览账户名称、服务商和参数，不显示密钥。
+
+### Changed
+
+- 验证码收件箱改为 ChatGPT 登录专用，只接受 `noreply@tm.openai.com` 与 `otp@tm1.openai.com` 发出的登录语境 6 位 OTP。
+- 新安装的邮件扫描时间范围默认改为 5 小时；已有用户自行保存的范围保持不变。
+- Windows、Android、iOS 与 macOS 端使用相同的邮件过滤与验证器迁移解析规则。
+
+### Security
+
+- 二维码图片与解码内容完全在本机处理，不上传、不写日志，导入确认界面不展示 Base32 密钥。
+- 拒绝登录二维码、恢复二维码、HOTP 和不支持算法；限制图片、二维码载荷、Protobuf 字段及导入项目数量。
+- 增加二维码像素级解码、Google 迁移格式、官方发件地址和仿冒地址测试。
+
 ## [1.1.0-alpha.1] - 2026-08-26
 
 ### Added

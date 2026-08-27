@@ -1,12 +1,13 @@
 # CodeHarbor 跨平台客户端
 
-这是 CodeHarbor 验证码港的 Flutter 社区预览客户端，一套代码覆盖 Android、iOS 和 macOS。当前版本为 `1.1.0-alpha.1`。
+这是 CodeHarbor 验证码港的 Flutter 社区预览客户端，一套代码覆盖 Android、iOS 和 macOS。当前版本为 `1.0.3`。
 
 ## 已实现
 
 - 本机加密邮箱与 TOTP 保险库
-- 只读 IMAP 验证码扫描
+- ChatGPT 登录专用的只读 IMAP OTP 扫描，默认最近 5 小时
 - RFC 6238 TOTP（6/8 位、SHA1/SHA256/SHA512）
+- Android/iPhone 相机扫码、三端图片导入，以及 Google Authenticator 批量迁移二维码
 - 与 Windows V1.0.2 兼容的密码加密 `.chbackup` 导入导出
 - 黑夜/白天主题与手机、平板、桌面响应式界面
 

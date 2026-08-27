@@ -5,8 +5,7 @@ import type {
   VerificationMessage,
 } from '../../src/shared/contracts';
 import {
-  extractVerificationCodes,
-  makeVerificationPurpose,
+  extractChatGptLoginCodes,
   stripHtml,
 } from '../core/code-extractor';
 import type { VaultStore } from './vault';
@@ -179,7 +178,7 @@ class ImapFlowSession implements MailboxSession {
       maxResponseSize: MAX_MESSAGE_BYTES + 2 * 1024 * 1024,
       clientInfo: {
         name: 'CodeHarbor',
-        version: '1.0.2',
+        version: '1.0.3',
         vendor: 'CodeHarbor',
       },
       tls: {
@@ -466,10 +465,10 @@ export class MailboxService {
     const subject = parsed.subject ?? fetched.envelope?.subject ?? '(无主题)';
     const html = typeof parsed.html === 'string' ? stripHtml(parsed.html) : '';
     const body = [parsed.text ?? '', html].filter(Boolean).join(' ');
-    const codes = extractVerificationCodes(subject, body);
+    const sender = formatParsedAddress(parsed.from) || formatAddress(fetched.envelope?.from?.[0]);
+    const codes = extractChatGptLoginCodes(sender, subject, body);
     if (!codes.length) return null;
 
-    const sender = formatParsedAddress(parsed.from) || formatAddress(fetched.envelope?.from?.[0]);
     const receivedValue = parsed.date ?? fetched.internalDate ?? fetched.envelope?.date ?? new Date();
     const receivedDate = new Date(receivedValue);
     return {
@@ -483,7 +482,7 @@ export class MailboxService {
         ? new Date().toISOString()
         : receivedDate.toISOString(),
       codes,
-      purpose: makeVerificationPurpose(subject, sender, codes),
+      purpose: 'ChatGPT 登录验证码',
     };
   }
 

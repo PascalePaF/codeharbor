@@ -65,15 +65,23 @@ ParsedTotp parseTotp(String input) {
   final issuerFromLabel = parts.length > 1 ? parts.removeAt(0).trim() : null;
   final label = parts.join(':').trim();
   final secret = normalizeBase32(uri.queryParameters['secret'] ?? '');
-  final digits = int.tryParse(uri.queryParameters['digits'] ?? '6') ?? 6;
-  final period = int.tryParse(uri.queryParameters['period'] ?? '30') ?? 30;
-  final algorithm = TotpAlgorithm.fromWire(uri.queryParameters['algorithm']);
+  final digits = int.tryParse(uri.queryParameters['digits'] ?? '6');
+  final period = int.tryParse(uri.queryParameters['period'] ?? '30');
+  final algorithmName = (uri.queryParameters['algorithm'] ?? 'SHA1')
+      .toUpperCase();
+  if (digits == null || period == null) {
+    throw const FormatException('TOTP 位数或周期格式不正确');
+  }
   if (digits != 6 && digits != 8) {
     throw const FormatException('TOTP 位数仅支持 6 或 8 位');
   }
   if (period < 15 || period > 120) {
     throw const FormatException('TOTP 周期必须在 15–120 秒之间');
   }
+  if (!const ['SHA1', 'SHA256', 'SHA512'].contains(algorithmName)) {
+    throw const FormatException('不支持该 TOTP 算法');
+  }
+  final algorithm = TotpAlgorithm.fromWire(algorithmName);
   decodeBase32(secret);
   return ParsedTotp(
     secret: secret,

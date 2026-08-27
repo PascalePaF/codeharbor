@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:codeharbor_app/core/authenticator_qr.dart';
 import 'package:codeharbor_app/core/backup_codec.dart';
 import 'package:codeharbor_app/core/code_extractor.dart';
 import 'package:codeharbor_app/core/totp.dart';
@@ -40,11 +41,91 @@ void main() {
         isEmpty,
       );
     });
+
+    test('keeps only official six-digit ChatGPT login OTPs', () {
+      expect(
+        extractChatGptLoginCodes(
+          'OpenAI <otp@tm1.openai.com>',
+          'Your ChatGPT code is 384 291',
+          'Use this login code to continue.',
+        ),
+        ['384291'],
+      );
+      expect(
+        extractChatGptLoginCodes(
+          'security@openai.example',
+          'Your ChatGPT verification code is 384291',
+          '',
+        ),
+        isEmpty,
+      );
+      expect(
+        extractChatGptLoginCodes(
+          'noreply@tm.openai.com',
+          'Workspace invitation',
+          'Invitation reference 384291',
+        ),
+        isEmpty,
+      );
+    });
+  });
+
+  group('authenticator QR import', () {
+    test('parses standard otpauth and Google migration QR payloads', () {
+      final standard = parseAuthenticatorQrPayload(
+        'otpauth://totp/Example:alice%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example',
+      );
+      expect(standard.entries.single.label, 'alice@example.com');
+      expect(standard.entries.single.issuer, 'Example');
+
+      final otp = Uint8List.fromList([
+        ..._bytesField(
+          1,
+          Uint8List.fromList([72, 101, 108, 108, 111, 33, 222, 173, 190, 239]),
+        ),
+        ..._bytesField(2, utf8.encode('Example:alice@example.com')),
+        ..._bytesField(3, utf8.encode('Example')),
+        ..._numberField(4, 1),
+        ..._numberField(5, 1),
+        ..._numberField(6, 2),
+      ]);
+      final migration = Uint8List.fromList([
+        ..._bytesField(1, otp),
+        ..._numberField(2, 1),
+        ..._numberField(3, 2),
+        ..._numberField(4, 0),
+      ]);
+      final encoded = base64Url.encode(migration).replaceAll('=', '');
+      final parsed = parseAuthenticatorQrPayload(
+        'otpauth-migration://offline?data=$encoded',
+      );
+      expect(parsed.entries.single.secret, 'JBSWY3DPEHPK3PXP');
+      expect(parsed.entries.single.label, 'alice@example.com');
+      expect(parsed.warnings.single, contains('第 1/2 张'));
+    });
+
+    test('rejects login QR codes', () {
+      expect(
+        () => parseAuthenticatorQrPayload('https://chatgpt.com/auth/login'),
+        throwsFormatException,
+      );
+      expect(
+        () => parseAuthenticatorQrPayload(
+          'otpauth://totp/Example:alice?secret=JBSWY3DPEHPK3PXP&algorithm=MD5',
+        ),
+        throwsFormatException,
+      );
+    });
+  });
+
+  test('new installs scan the latest five hours by default', () {
+    expect(const AppSettings().scanWindowHours, 5);
   });
 
   group('portable backup', () {
     final now = DateTime.utc(2026, 8, 26, 12);
     final data = VaultData(
+      settings: const AppSettings(scanWindowHours: 24),
       accounts: [
         MailAccount(
           id: 'mail-1',
@@ -120,3 +201,26 @@ void main() {
     });
   });
 }
+
+List<int> _varint(int value) {
+  final result = <int>[];
+  var current = value;
+  do {
+    var byte = current & 0x7f;
+    current ~/= 128;
+    if (current > 0) byte |= 0x80;
+    result.add(byte);
+  } while (current > 0);
+  return result;
+}
+
+List<int> _bytesField(int field, List<int> value) => [
+  ..._varint((field << 3) | 2),
+  ..._varint(value.length),
+  ...value,
+];
+
+List<int> _numberField(int field, int value) => [
+  ..._varint(field << 3),
+  ..._varint(value),
+];

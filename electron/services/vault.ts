@@ -49,7 +49,7 @@ export interface PortableImportSummary {
 
 const DEFAULT_SETTINGS: AppSettings = {
   pollIntervalMinutes: 2,
-  scanWindowHours: 24,
+  scanWindowHours: 5,
   maxMessagesPerAccount: 30,
   autoRefresh: false,
   theme: 'dark',

@@ -98,9 +98,9 @@ class MailService {
         final subject = message.decodeSubject() ?? '(无主题)';
         final plain = message.decodeTextPlainPart() ?? '';
         final html = stripHtml(message.decodeTextHtmlPart() ?? '');
-        final codes = extractVerificationCodes(subject, '$plain $html');
-        if (codes.isEmpty) continue;
         final sender = _sender(message);
+        final codes = extractChatGptLoginCodes(sender, subject, '$plain $html');
+        if (codes.isEmpty) continue;
         messages.add(
           VerificationMessage(
             id: '${account.id}:${message.uid ?? message.sequenceId ?? messages.length}',
@@ -111,7 +111,7 @@ class MailService {
             sender: sender,
             receivedAt: receivedAt,
             codes: codes,
-            purpose: makeVerificationPurpose(subject, sender, codes),
+            purpose: 'ChatGPT 登录验证码',
           ),
         );
       }
@@ -120,7 +120,7 @@ class MailService {
           accountId: account.id,
           ok: true,
           message:
-              '扫描完成：找到 ${messages.length} 封验证码邮件（${stopwatch.elapsedMilliseconds} ms）',
+              '扫描完成：找到 ${messages.length} 封 ChatGPT 登录验证码邮件（${stopwatch.elapsedMilliseconds} ms）',
           messageCount: messages.length,
         ),
         messages,

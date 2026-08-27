@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import 'core/backup_codec.dart';
+import 'core/authenticator_qr.dart';
 import 'core/providers.dart';
 import 'core/totp.dart';
 import 'models/models.dart';
@@ -20,7 +21,7 @@ class AppController extends ChangeNotifier {
        _mail = mail ?? const MailService(),
        _backup = backup ?? BackupCodec();
 
-  static const appVersion = '1.1.0-alpha.1';
+  static const appVersion = '1.0.3';
   final VaultRepository _vault;
   final MailService _mail;
   final BackupCodec _backup;
@@ -261,6 +262,62 @@ class AppController extends ChangeNotifier {
       entries[index] = entry;
     }
     await _replace(data.copyWith(totpEntries: entries));
+  }
+
+  Future<({int created, int updated})> importAuthenticatorQr(
+    AuthenticatorQrResult result,
+  ) async {
+    if (result.entries.isEmpty || result.entries.length > 500) {
+      throw const FormatException('二维码中没有项目或超过 500 项限制');
+    }
+    final entries = [...data.totpEntries];
+    var created = 0;
+    var updated = 0;
+    for (final item in result.entries) {
+      final label = item.label.trim();
+      final issuer = item.issuer.trim();
+      if (label.isEmpty || label.length > 100 || issuer.length > 100) {
+        throw const FormatException('二维码中的账户名称为空或超过 100 个字符');
+      }
+      final secret = normalizeBase32(item.secret);
+      decodeBase32(secret);
+      if (item.digits != 6 && item.digits != 8) {
+        throw const FormatException('TOTP 位数仅支持 6 或 8 位');
+      }
+      if (item.period < 15 || item.period > 120) {
+        throw const FormatException('TOTP 周期必须在 15–120 秒之间');
+      }
+      final index = entries.indexWhere(
+        (entry) =>
+            entry.label.toLowerCase() == label.toLowerCase() &&
+            entry.issuer.toLowerCase() == issuer.toLowerCase(),
+      );
+      final now = DateTime.now().toUtc();
+      final existing = index < 0 ? null : entries[index];
+      final next = TotpEntry(
+        id: existing?.id ?? _uuid.v4(),
+        label: label,
+        issuer: issuer,
+        secret: secret,
+        digits: item.digits,
+        period: item.period,
+        algorithm: item.algorithm,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      );
+      if (index < 0) {
+        if (entries.length >= 500) {
+          throw const FormatException('最多保存 500 个 2FA 项目');
+        }
+        entries.add(next);
+        created += 1;
+      } else {
+        entries[index] = next;
+        updated += 1;
+      }
+    }
+    await _replace(data.copyWith(totpEntries: entries));
+    return (created: created, updated: updated);
   }
 
   Future<void> removeTotp(String id) async {

@@ -10,7 +10,7 @@ void main() {
 
     expect(find.text('CodeHarbor 验证码港'), findsOneWidget);
     expect(find.text('扫描全部'), findsOneWidget);
-    expect(find.text('验证码邮件'), findsOneWidget);
+    expect(find.text('ChatGPT 登录验证码'), findsOneWidget);
 
     controller.dispose();
   });

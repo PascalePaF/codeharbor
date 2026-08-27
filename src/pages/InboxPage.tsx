@@ -77,9 +77,9 @@ export function InboxPage({
     <div className="inbox-workspace">
       <section className="inbox-commandbar">
         <div>
-          <span className="eyebrow green">验证码工作台</span>
-          <h2>邮箱验证码与 2FA，一处处理</h2>
-          <p>扫描结果仅显示发件方、识别到的动态码和用途；其余邮件自动忽略。</p>
+          <span className="eyebrow green">CHATGPT LOGIN</span>
+          <h2>ChatGPT 登录验证码与 2FA，一处处理</h2>
+          <p>仅接收 OpenAI 官方地址发出的 6 位 ChatGPT 登录码；其余邮件全部忽略。</p>
         </div>
         <div className="scan-summary">
           <span>{lastScan ? `最近扫描：${formatRelativeTime(lastScan)}` : '尚未扫描邮箱'}</span>
@@ -142,15 +142,15 @@ export function InboxPage({
         <section className="inbox-results content-panel">
           <header className="results-header">
             <div><SearchCheck size={19} /><div><h3>{accountFilter === 'all' ? '全部验证码结果' : accounts.find((item) => item.id === accountFilter)?.label ?? '验证码结果'}</h3><span>{filtered.length} 条匹配结果</span></div></div>
-            <span className="filter-note">已过滤普通邮件</span>
+            <span className="filter-note">仅显示 ChatGPT 登录验证码</span>
           </header>
           <div className="results-scroll">
             {!accounts.length ? (
               <div className="empty-state"><div className="empty-icon"><Inbox size={29} /></div><h3>先添加邮箱账户</h3><p>支持主流邮箱和自定义 IMAP。</p><button className="button primary" type="button" onClick={onGoAccounts}>添加邮箱</button></div>
             ) : scanningTarget && !filtered.length ? (
-              <div className="empty-state"><div className="scan-radar"><span /></div><h3>正在只读查询验证码</h3><p>邮箱较多时可能需要几十秒，请保持网络连接。</p></div>
+              <div className="empty-state"><div className="scan-radar"><span /></div><h3>正在只读查询 ChatGPT 登录码</h3><p>只匹配 OpenAI 官方 OTP 发件地址；邮箱较多时可能需要几十秒。</p></div>
             ) : !filtered.length ? (
-              <div className="empty-state compact"><div className="empty-icon"><SearchCheck size={28} /></div><h3>{messages.length ? '当前筛选没有结果' : '暂未发现验证码'}</h3><p>{messages.length ? '可切换邮箱或清除顶部搜索词。' : '点击全量扫描，或在左侧单独查询一个邮箱。'}</p></div>
+              <div className="empty-state compact"><div className="empty-icon"><SearchCheck size={28} /></div><h3>{messages.length ? '当前筛选没有结果' : '暂未发现 ChatGPT 登录验证码'}</h3><p>{messages.length ? '可切换邮箱或清除顶部搜索词。' : '默认查询最近 5 小时；可全量扫描或单独查询一个邮箱。'}</p></div>
             ) : filtered.map((message) => {
               const provider = providers.find((item) => item.id === message.provider);
               return (

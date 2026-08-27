@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { extractVerificationCodes, makePreview, makeVerificationPurpose, stripHtml } from './code-extractor';
+import {
+  extractChatGptLoginCodes,
+  extractVerificationCodes,
+  isOfficialChatGptOtpSender,
+  makePreview,
+  makeVerificationPurpose,
+  stripHtml,
+} from './code-extractor';
 
 describe('verification code extraction', () => {
   it('prioritizes a six-digit code near a Chinese keyword', () => {
@@ -30,5 +37,30 @@ describe('verification code extraction', () => {
   it('builds a short purpose label without repeating the code', () => {
     expect(makeVerificationPurpose('Your ChatGPT login code is 482913', 'OpenAI <noreply@openai.com>', ['482913']))
       .toBe('Your ChatGPT login code is');
+  });
+
+  it('accepts only six-digit ChatGPT OTPs from the two official sender addresses', () => {
+    expect(isOfficialChatGptOtpSender('OpenAI <noreply@tm.openai.com>')).toBe(true);
+    expect(isOfficialChatGptOtpSender('otp@tm1.openai.com')).toBe(true);
+    expect(extractChatGptLoginCodes(
+      'OpenAI <otp@tm1.openai.com>',
+      'Your ChatGPT code is 482 913',
+      'Use this login code to continue.',
+    )).toEqual(['482913']);
+    expect(extractChatGptLoginCodes(
+      'OpenAI Support <security@openai.example>',
+      'Your ChatGPT verification code is 482913',
+      '',
+    )).toEqual([]);
+    expect(extractChatGptLoginCodes(
+      'noreply@tm.openai.com',
+      'Workspace invitation',
+      'Your invitation reference is 482913.',
+    )).toEqual([]);
+    expect(extractChatGptLoginCodes(
+      'otp@tm1.openai.com',
+      'Your login code is 48291312',
+      '',
+    )).toEqual([]);
   });
 });

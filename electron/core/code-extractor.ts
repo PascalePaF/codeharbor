@@ -28,6 +28,11 @@ const KEYWORDS = [
 ];
 
 const KEYWORD_PATTERN = new RegExp(KEYWORDS.join('|'), 'i');
+const CHATGPT_OTP_SENDERS = new Set([
+  'noreply@tm.openai.com',
+  'otp@tm1.openai.com',
+]);
+const CHATGPT_OTP_CONTEXT = /chatgpt|verification|security|login|log[ -]?in|sign[ -]?in|one[ -]?time|passcode|\botp\b|验证码|登录|验证|認証|確認|인증/i;
 
 function normalizeCandidate(value: string): string {
   return value.replace(/[\s-]/g, '').toUpperCase();
@@ -102,6 +107,28 @@ export function extractVerificationCodes(subject: string, body: string): string[
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(([code]) => code);
+}
+
+export function isOfficialChatGptOtpSender(sender: string): boolean {
+  const addresses = sender.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+/gi) ?? [];
+  const address = addresses.at(-1)?.toLowerCase() ?? '';
+  return CHATGPT_OTP_SENDERS.has(address);
+}
+
+export function extractChatGptLoginCodes(sender: string, subject: string, body: string): string[] {
+  if (!isOfficialChatGptOtpSender(sender)) return [];
+  const results: string[] = [];
+  for (const text of [subject ?? '', body ?? '']) {
+    for (const match of text.matchAll(/(?<!\d)(\d(?:[\s-]?\d){5})(?!\d)/g)) {
+      const raw = match[1] ?? match[0];
+      const context = surroundingText(text, match.index ?? 0, raw.length, 128);
+      if (!CHATGPT_OTP_CONTEXT.test(context)) continue;
+      const code = normalizeCandidate(raw);
+      if (!results.includes(code)) results.push(code);
+      if (results.length >= 3) return results;
+    }
+  }
+  return results;
 }
 
 export function makePreview(text: string, maxLength = 150): string {
