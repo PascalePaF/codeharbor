@@ -26,6 +26,26 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Verify tag matches application version
+        shell: pwsh
+        run: |
+          $sourceVersion = node -p "require('./package.json').version"
+          if ($env:GITHUB_REF_NAME -ne "v$sourceVersion") {
+            throw "Tag $env:GITHUB_REF_NAME does not match package.json version $sourceVersion"
+          }
+      - name: Run responsive desktop smoke test
+        shell: pwsh
+        run: |
+          $env:CODEHARBOR_SMOKE_USER_DATA = Join-Path $env:RUNNER_TEMP "codeharbor-smoke-user-data"
+          npm run smoke
+      - name: Upload responsive smoke screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-responsive-smoke
+          path: test-results/*.png
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Build Windows artifacts
         run: npm run dist
       - name: Create GitHub release

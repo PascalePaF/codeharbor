@@ -18,7 +18,11 @@ void main() {
     await tester.pumpWidget(CodeHarborApp(controller: controller));
     await tester.pump(const Duration(seconds: 2));
 
-    expect(find.text('CodeHarbor 验证码港'), findsOneWidget);
+    expect(
+      find.text('CodeHarbor 验证码港').evaluate().isNotEmpty ||
+          find.text('验证码收件箱').evaluate().isNotEmpty,
+      isTrue,
+    );
     expect(find.text('扫描全部'), findsOneWidget);
 
     await tester.tap(find.text('2FA'));

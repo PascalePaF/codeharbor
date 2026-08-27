@@ -178,7 +178,7 @@ class ImapFlowSession implements MailboxSession {
       maxResponseSize: MAX_MESSAGE_BYTES + 2 * 1024 * 1024,
       clientInfo: {
         name: 'CodeHarbor',
-        version: '1.0.3',
+        version: '1.0.4',
         vendor: 'CodeHarbor',
       },
       tls: {

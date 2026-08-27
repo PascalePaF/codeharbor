@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -429,35 +431,49 @@ class _TotpEditorDialogState extends State<TotpEditorDialog> {
                 decoration: const InputDecoration(labelText: '服务商（可选）'),
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<int>(
-                      initialValue: _digits,
-                      decoration: const InputDecoration(labelText: '位数'),
-                      items: const [
-                        DropdownMenuItem(value: 6, child: Text('6 位（常用）')),
-                        DropdownMenuItem(value: 8, child: Text('8 位')),
-                      ],
-                      onChanged: (value) => setState(() => _digits = value!),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      initialValue: _period.toString(),
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: '周期（秒）'),
-                      onChanged: (value) => _period = int.tryParse(value) ?? 30,
-                      validator: (value) {
-                        final number = int.tryParse(value ?? '');
-                        return number != null && number >= 15 && number <= 120
-                            ? null
-                            : '15–120 秒';
-                      },
-                    ),
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final fieldWidth = constraints.maxWidth < 420
+                      ? constraints.maxWidth
+                      : (constraints.maxWidth - 12) / 2;
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      SizedBox(
+                        width: fieldWidth,
+                        child: DropdownButtonFormField<int>(
+                          initialValue: _digits,
+                          decoration: const InputDecoration(labelText: '位数'),
+                          items: const [
+                            DropdownMenuItem(value: 6, child: Text('6 位（常用）')),
+                            DropdownMenuItem(value: 8, child: Text('8 位')),
+                          ],
+                          onChanged: (value) =>
+                              setState(() => _digits = value!),
+                        ),
+                      ),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: TextFormField(
+                          initialValue: _period.toString(),
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: '周期（秒）'),
+                          onChanged: (value) =>
+                              _period = int.tryParse(value) ?? 30,
+                          validator: (value) {
+                            final number = int.tryParse(value ?? '');
+                            return number != null &&
+                                    number >= 15 &&
+                                    number <= 120
+                                ? null
+                                : '15–120 秒';
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<TotpAlgorithm>(
@@ -533,45 +549,47 @@ class _BackupPasswordDialogState extends State<_BackupPasswordDialog> {
     title: Text(widget.exporting ? '导出加密备份' : '导入加密备份'),
     content: SizedBox(
       width: 440,
-      child: Form(
-        key: _form,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            HelpPanel(
-              text: widget.exporting
-                  ? '备份密码不会保存。请使用至少 8 个字符的独立密码，忘记后无法恢复。'
-                  : '先验证备份密码和完整性，成功后才会合并到本机保险库。',
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _password,
-              obscureText: _obscure,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: '安全密码',
-                suffixIcon: IconButton(
-                  onPressed: () => setState(() => _obscure = !_obscure),
-                  icon: Icon(
-                    _obscure ? Icons.visibility : Icons.visibility_off,
-                  ),
-                ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _form,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              HelpPanel(
+                text: widget.exporting
+                    ? '备份密码不会保存。请使用至少 8 个字符的独立密码，忘记后无法恢复。'
+                    : '先验证备份密码和完整性，成功后才会合并到本机保险库。',
               ),
-              validator: (value) =>
-                  (value?.length ?? 0) < 8 ? '至少需要 8 个字符' : null,
-            ),
-            if (widget.exporting) ...[
               const SizedBox(height: 12),
               TextFormField(
-                controller: _confirm,
+                controller: _password,
                 obscureText: _obscure,
-                decoration: const InputDecoration(labelText: '再次输入安全密码'),
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: '安全密码',
+                  suffixIcon: IconButton(
+                    onPressed: () => setState(() => _obscure = !_obscure),
+                    icon: Icon(
+                      _obscure ? Icons.visibility : Icons.visibility_off,
+                    ),
+                  ),
+                ),
                 validator: (value) =>
-                    value != _password.text ? '两次密码不一致' : null,
+                    (value?.length ?? 0) < 8 ? '至少需要 8 个字符' : null,
               ),
+              if (widget.exporting) ...[
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _confirm,
+                  obscureText: _obscure,
+                  decoration: const InputDecoration(labelText: '再次输入安全密码'),
+                  validator: (value) =>
+                      value != _password.text ? '两次密码不一致' : null,
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     ),
@@ -684,33 +702,50 @@ class _AuthenticatorCameraScannerState
       children: [
         MobileScanner(controller: _controller, onDetect: _detected),
         IgnorePointer(
-          child: Center(
-            child: Container(
-              width: 270,
-              height: 270,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.primary,
-                  width: 3,
-                ),
-              ),
-            ),
-          ),
-        ),
-        const Positioned(
-          left: 24,
-          right: 24,
-          bottom: 38,
           child: SafeArea(
-            child: Card(
-              child: Padding(
-                padding: EdgeInsets.all(14),
-                child: Text(
-                  '对准 Google Authenticator 或其他验证器导出的二维码。二维码只在本机解析。',
-                  textAlign: TextAlign.center,
+            minimum: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            child: Column(
+              children: [
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final available = math.min(
+                        constraints.maxWidth,
+                        constraints.maxHeight,
+                      );
+                      final size = math.min(
+                        300.0,
+                        math.max(0.0, available - 4),
+                      );
+                      return Center(
+                        child: Container(
+                          width: size,
+                          height: size,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(
+                              (size * 0.09).clamp(12.0, 24.0).toDouble(),
+                            ),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.primary,
+                              width: 3,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
+                const SizedBox(height: 12),
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(14),
+                    child: Text(
+                      '对准 Google Authenticator 或其他验证器导出的二维码。二维码只在本机解析。',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

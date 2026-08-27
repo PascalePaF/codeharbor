@@ -2,7 +2,7 @@
 
 CodeHarbor 只读取标准 IMAP，不会代替邮箱服务商完成安全验证。添加前应在对应邮箱网页端开启第三方客户端访问。
 
-V1.0.3 的验证码收件箱固定为 ChatGPT 登录专用：只显示 OpenAI 官方说明中的 `noreply@tm.openai.com` 和 `otp@tm1.openai.com` 发出的 6 位登录 OTP。邮箱服务商设置只决定能否读取邮件，不会放宽这个过滤标准。
+V1.0.4 的验证码收件箱固定为 ChatGPT 登录专用：只显示 OpenAI 官方说明中的 `noreply@tm.openai.com` 和 `otp@tm1.openai.com` 发出的 6 位登录 OTP。邮箱服务商设置只决定能否读取邮件，不会放宽这个过滤标准。
 
 ## 163 / 126
 
@@ -21,7 +21,7 @@ V1.0.3 的验证码收件箱固定为 ChatGPT 登录专用：只显示 OpenAI �
 
 先开启 Google 两步验证，再生成 [16 位应用专用密码](https://support.google.com/accounts/answer/185833?hl=zh-Hans)，在 CodeHarbor 中选择“应用专用密码”并粘贴它。
 
-Google 登录密码和每 30 秒变化的 6 位 2FA 动态码都不是 IMAP 凭据。若组织策略不显示应用专用密码，可选择 OAuth2 并输入已有的有效访问令牌；V1.0.3 不负责申请或刷新令牌。
+Google 登录密码和每 30 秒变化的 6 位 2FA 动态码都不是 IMAP 凭据。若组织策略不显示应用专用密码，可选择 OAuth2 并输入已有的有效访问令牌；V1.0.4 不负责申请或刷新令牌。
 
 ## 阿里个人邮箱
 
@@ -33,7 +33,7 @@ Google 登录密码和每 30 秒变化的 6 位 2FA 动态码都不是 IMAP 凭�
 
 ## Microsoft Outlook / 365
 
-Microsoft 要求 OAuth2 / Modern Auth。CodeHarbor V1.0.3 可使用现有 OAuth2 访问令牌，但不内置授权注册或刷新流程；令牌过期后需要更新。先按 [Outlook IMAP 官方设置](https://support.microsoft.com/en-US/Outlook/pop-imap-and-smtp-settings-for-outlook-com)允许 IMAP，再由管理员参考 Microsoft 的 [IMAP OAuth 官方说明](https://learn.microsoft.com/en-us/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth)取得包含 IMAP 权限的令牌。普通邮箱密码加 6 位验证码不是该登录流程。
+Microsoft 要求 OAuth2 / Modern Auth。CodeHarbor V1.0.4 可使用现有 OAuth2 访问令牌，但不内置授权注册或刷新流程；令牌过期后需要更新。先按 [Outlook IMAP 官方设置](https://support.microsoft.com/en-US/Outlook/pop-imap-and-smtp-settings-for-outlook-com)允许 IMAP，再由管理员参考 Microsoft 的 [IMAP OAuth 官方说明](https://learn.microsoft.com/en-us/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth)取得包含 IMAP 权限的令牌。普通邮箱密码加 6 位验证码不是该登录流程。
 
 ## Mail.com
 
@@ -50,4 +50,4 @@ Microsoft 要求 OAuth2 / Modern Auth。CodeHarbor V1.0.3 可使用现有 OAuth2
 
 - “认证失败”：通常是把网页登录密码、短信码或 6 位 2FA 填到了授权码字段。
 - “IMAP 尚未开启”：回到邮箱网页设置中开启第三方客户端访问。
-- “连接超时”：检查代理、防火墙是否允许 TCP 993；V1.0.3 会把这类错误留在账户状态，不再弹出主进程异常框。
+- “连接超时”：检查代理、防火墙是否允许 TCP 993；V1.0.4 会把这类错误留在账户状态，不再弹出主进程异常框。

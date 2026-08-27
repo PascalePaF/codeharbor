@@ -1,7 +1,7 @@
 {
   "name": "codeharbor",
   "productName": "CodeHarbor 验证码港",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "本地优先的多邮箱 ChatGPT 登录验证码与 TOTP 管理桌面应用",
   "main": "dist-electron/electron/main.js",
   "private": true,

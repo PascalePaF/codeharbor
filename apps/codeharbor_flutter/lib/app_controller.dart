@@ -21,7 +21,7 @@ class AppController extends ChangeNotifier {
        _mail = mail ?? const MailService(),
        _backup = backup ?? BackupCodec();
 
-  static const appVersion = '1.0.3';
+  static const appVersion = '1.0.4';
   final VaultRepository _vault;
   final MailService _mail;
   final BackupCodec _backup;

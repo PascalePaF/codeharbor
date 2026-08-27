@@ -10,7 +10,7 @@
   <a href="https://github.com/PascalePaF/codeharbor/releases/latest"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/PascalePaF/codeharbor?style=flat-square"></a>
   <a href="https://github.com/PascalePaF/codeharbor/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/PascalePaF/codeharbor/ci.yml?branch=main&style=flat-square&label=CI"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Android%20%7C%20iOS%20%7C%20macOS-2563eb?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-V1.0.3-16825d?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-V1.0.4-16825d?style=flat-square">
 </p>
 
 ![CodeHarbor 验证码工作台](docs/screenshots/overview.png)
@@ -19,11 +19,11 @@
 
 ## 跨平台社区预览
 
-Android、iPhone/iPad 和 macOS 客户端已同步到 `1.0.3` 社区预览，源码位于 [`apps/codeharbor_flutter`](apps/codeharbor_flutter)。它不是简单网页壳，而是包含本机加密保险库、ChatGPT OTP 专用只读 IMAP 扫描、验证器二维码导入、TOTP 和与 Windows V1.0.2 兼容的 `.chbackup` 导入导出。
+Android、iPhone/iPad 和 macOS 客户端已同步到 `1.0.4` 社区预览，源码位于 [`apps/codeharbor_flutter`](apps/codeharbor_flutter)。它不是简单网页壳，而是包含本机加密保险库、ChatGPT OTP 专用只读 IMAP 扫描、验证器二维码导入、TOTP 和与 Windows V1.0.2 及以后版本兼容的 `.chbackup` 导入导出。
 
 | 平台 | 当前状态 | 获取方式 |
 | --- | --- | --- |
-| Windows 10/11 x64 | V1.0.3 稳定版 | [Releases](https://github.com/PascalePaF/codeharbor/releases/latest) |
+| Windows 10/11 x64 | V1.0.4 稳定版 | [Releases](https://github.com/PascalePaF/codeharbor/releases/latest) |
 | Android | 社区 Debug APK，可安装测试 | Mobile CI / Community Preview Release artifact |
 | iPhone / iPad | iOS Simulator 开发预览 | Mobile CI artifact；实体设备仍需 Apple 签名 |
 | macOS | 未签名开发预览 | Mobile CI artifact；正式分发仍需签名与公证 |
@@ -35,6 +35,7 @@ Android、iPhone/iPad 和 macOS 客户端已同步到 `1.0.3` 社区预览，源
 - 集中管理 163、126、QQ / Foxmail、Gmail、阿里个人、阿里企业、Microsoft Outlook / 365、Mail.com 和自定义 IMAP 邮箱。
 - CSV / TXT 批量导入最多 500 个邮箱或 2FA 项目，并支持邮箱、2FA 各自独立的加密导入和加密导出。
 - 三栏验证码工作台：左侧逐个查询邮箱，中间只显示 ChatGPT 登录验证码，右侧显示实时 TOTP。
+- 自适应界面：桌面窗口在 760×560 到超宽屏之间自动调整字号、间距、侧栏和收件箱栏数，窄窗口不再依赖整页横向滚动。
 - “立即扫描全部邮箱”以最多 3 个并发只读连接批量扫描；只接受 OpenAI 官方 OTP 地址发出的登录语境 6 位码，其他邮件全部忽略。
 - Base32 密钥或完整 `otpauth://` 链接生成 TOTP，支持 SHA1 / SHA256 / SHA512、6 / 8 位及 15–120 秒周期。
 - 支持验证器二维码导入：电脑上传图片，Android/iPhone 使用相机或图片；兼容标准 TOTP 和 Google Authenticator 批量迁移二维码。
@@ -51,11 +52,11 @@ Android、iPhone/iPad 和 macOS 客户端已同步到 `1.0.3` 社区预览，源
 
 请从 [最新 Release](https://github.com/PascalePaF/codeharbor/releases/latest) 下载：
 
-- `CodeHarbor-Setup-1.0.3-x64.exe`：推荐的 Windows 安装版，支持以后直接在软件内部自动更新。
-- `CodeHarbor-Portable-1.0.3-x64.exe`：免安装便携版；因没有安装上下文，不支持内部自动替换。
+- `CodeHarbor-Setup-1.0.4-x64.exe`：推荐的 Windows 安装版，支持以后直接在软件内部自动更新。
+- `CodeHarbor-Portable-1.0.4-x64.exe`：免安装便携版；因没有安装上下文，不支持内部自动替换。
 - `SHA256SUMS.txt`：安装包校验值。
 
-V1.0.2 是自动更新功能的起点；已安装 V1.0.2 的安装版可以在软件内升级到 V1.0.3。当前构建尚未使用商业代码签名证书，Windows SmartScreen 首次运行时可能显示提示。
+V1.0.2 是自动更新功能的起点；已安装 V1.0.2 或 V1.0.3 的安装版可以在软件内升级到 V1.0.4。当前构建尚未使用商业代码签名证书，Windows SmartScreen 首次运行时可能显示提示。
 
 默认数据位置：
 
@@ -156,6 +157,7 @@ iOS 与 macOS 的编译和模拟器烟雾测试由 GitHub Actions 的 macOS runn
 - [安全策略](SECURITY.md)
 - [V1.0.2 发布说明](docs/RELEASE_NOTES-v1.0.2.md)
 - [V1.0.3 发布说明](docs/RELEASE_NOTES-v1.0.3.md)
+- [V1.0.4 发布说明](docs/RELEASE_NOTES-v1.0.4.md)
 - [跨平台社区预览与测试](docs/MOBILE_COMMUNITY_PREVIEW.md)
 
 本仓库公开用于透明审查和版本发布，但当前并未授予复制、修改或再分发许可；详见 [LICENSE](LICENSE)。请勿在 Issue、日志或提交中包含真实密码、授权码、OAuth2 令牌、TOTP 密钥、验证码邮件原文或保险库文件。

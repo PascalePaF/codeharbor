@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -25,6 +26,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _page = 0;
   String _search = '';
+  bool _compactSearchOpen = false;
+  final _searchController = TextEditingController();
 
   AppController get controller => widget.controller;
 
@@ -46,6 +49,22 @@ class _HomeScreenState extends State<HomeScreen> {
       label: '设置',
     ),
   ];
+  static const _pageTitles = ['验证码收件箱', '邮箱账户', '2FA 动态码', '安全与设置'];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _selectPage(int value) {
+    setState(() {
+      _page = value;
+      _search = '';
+      _compactSearchOpen = false;
+      _searchController.clear();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,51 +87,77 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final wide = MediaQuery.sizeOf(context).width >= 900;
+    final width = MediaQuery.sizeOf(context).width;
+    final useRail = width >= 720;
+    final fullBrand = width >= 900;
+    final compactHeader = width < 560;
+    final iconOnlySearch = width < 400;
+    final searchWidth = width >= 1000
+        ? 280.0
+        : width >= 720
+        ? 220.0
+        : width >= 400
+        ? 135.0
+        : 110.0;
     final body = _pageBody();
     return Scaffold(
       appBar: AppBar(
-        titleSpacing: wide ? 22 : 16,
-        title: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Icon(
-                Icons.shield_outlined,
-                color: Theme.of(context).colorScheme.onPrimary,
-                size: 21,
-              ),
-            ),
-            const SizedBox(width: 11),
-            const Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        titleSpacing: useRail ? 22 : 16,
+        title: iconOnlySearch && _compactSearchOpen
+            ? const SizedBox.shrink()
+            : compactHeader
+            ? Text(
+                _pageTitles[_page],
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+              )
+            : Row(
                 children: [
-                  Text('CodeHarbor 验证码港', overflow: TextOverflow.ellipsis),
-                  Text(
-                    'Android · iPhone · macOS 社区预览',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.normal,
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Icon(
+                      Icons.shield_outlined,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      size: 21,
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'CodeHarbor 验证码港',
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (fullBrand)
+                          Text(
+                            'Android · iPhone · macOS 社区预览',
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
         actions: [
-          if (_page != 3)
+          if (_page != 3 && (!iconOnlySearch || _compactSearchOpen))
             SizedBox(
-              width: wide ? 280 : 150,
+              width: iconOnlySearch ? math.min(180, width * .55) : searchWidth,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: TextField(
+                  controller: _searchController,
+                  autofocus: iconOnlySearch,
                   decoration: const InputDecoration(
                     hintText: '搜索',
                     prefixIcon: Icon(Icons.search, size: 20),
@@ -123,19 +168,30 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+          if (_page != 3 && iconOnlySearch)
+            IconButton(
+              tooltip: _compactSearchOpen ? '收起搜索' : '搜索',
+              onPressed: () => setState(() {
+                if (_compactSearchOpen) {
+                  _compactSearchOpen = false;
+                  _search = '';
+                  _searchController.clear();
+                } else {
+                  _compactSearchOpen = true;
+                }
+              }),
+              icon: Icon(_compactSearchOpen ? Icons.close : Icons.search),
+            ),
           const SizedBox(width: 8),
         ],
       ),
       body: Row(
         children: [
-          if (wide)
+          if (useRail)
             NavigationRail(
               selectedIndex: _page,
               labelType: NavigationRailLabelType.all,
-              onDestinationSelected: (value) => setState(() {
-                _page = value;
-                _search = '';
-              }),
+              onDestinationSelected: _selectPage,
               destinations: _destinations
                   .map(
                     (item) => NavigationRailDestination(
@@ -146,19 +202,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   )
                   .toList(),
             ),
-          if (wide) const VerticalDivider(width: 1),
+          if (useRail) const VerticalDivider(width: 1),
           Expanded(child: body),
         ],
       ),
-      bottomNavigationBar: wide
+      bottomNavigationBar: useRail
           ? null
           : NavigationBar(
               selectedIndex: _page,
               destinations: _destinations,
-              onDestinationSelected: (value) => setState(() {
-                _page = value;
-                _search = '';
-              }),
+              onDestinationSelected: _selectPage,
             ),
       floatingActionButton: switch (_page) {
         1 => FloatingActionButton.extended(
@@ -381,7 +434,10 @@ class InboxPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 14),
-              Expanded(flex: 5, child: _InboxMessages(messages: messages)),
+              Expanded(
+                flex: 5,
+                child: _InboxMessages(messages: messages, onMessage: onMessage),
+              ),
               const SizedBox(width: 14),
               Expanded(
                 flex: 3,
@@ -401,7 +457,11 @@ class InboxPage extends StatelessWidget {
             compact: true,
           ),
           const SizedBox(height: 14),
-          _InboxMessages(messages: messages, compact: true),
+          _InboxMessages(
+            messages: messages,
+            onMessage: onMessage,
+            compact: true,
+          ),
           const SizedBox(height: 14),
           _InboxTotp(entries: totp, onMessage: onMessage, compact: true),
         ],
@@ -495,8 +555,13 @@ class _InboxAccounts extends StatelessWidget {
 }
 
 class _InboxMessages extends StatelessWidget {
-  const _InboxMessages({required this.messages, this.compact = false});
+  const _InboxMessages({
+    required this.messages,
+    required this.onMessage,
+    this.compact = false,
+  });
   final List<VerificationMessage> messages;
+  final void Function(String, {bool error}) onMessage;
   final bool compact;
 
   @override
@@ -516,35 +581,37 @@ class _InboxMessages extends StatelessWidget {
                 (message) => Card(
                   child: Padding(
                     padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final details = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Text(
-                                message.sender,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
                             Text(
-                              DateFormat(
-                                'MM-dd HH:mm',
-                              ).format(message.receivedAt.toLocal()),
+                              message.sender,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${message.accountLabel} · ${DateFormat('MM-dd HH:mm').format(message.receivedAt.toLocal())}',
                               style: Theme.of(context).textTheme.bodySmall,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              message.purpose,
+                              style: Theme.of(context).textTheme.bodySmall,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          message.purpose,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
+                        );
+                        final codes = Wrap(
+                          alignment: WrapAlignment.end,
                           spacing: 8,
                           runSpacing: 8,
                           children: message.codes
@@ -558,14 +625,39 @@ class _InboxMessages extends StatelessWidget {
                                       letterSpacing: 2,
                                     ),
                                   ),
-                                  onPressed: () => Clipboard.setData(
-                                    ClipboardData(text: code),
-                                  ),
+                                  tooltip: '复制验证码 $code',
+                                  onPressed: () async {
+                                    await Clipboard.setData(
+                                      ClipboardData(text: code),
+                                    );
+                                    onMessage('验证码已复制');
+                                  },
                                 ),
                               )
                               .toList(),
-                        ),
-                      ],
+                        );
+                        if (constraints.maxWidth >= 430) {
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(child: details),
+                              const SizedBox(width: 12),
+                              Flexible(child: codes),
+                            ],
+                          );
+                        }
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            details,
+                            const SizedBox(height: 10),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: codes,
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -659,49 +751,54 @@ class AccountsPage extends StatelessWidget {
               child: Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact =
+                          constraints.maxWidth < 520 ||
+                          MediaQuery.textScalerOf(context).scale(16) > 23;
+                      final avatar = CircleAvatar(
                         child: Text(
                           providerFor(account.provider).name.characters.first,
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              account.label,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700),
+                      );
+                      final details = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            account.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${account.email} · ${account.imapHost}:${account.imapPort}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            status?.message ??
+                                (account.enabled ? '等待连接测试' : '已暂停扫描'),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: status == null
+                                  ? null
+                                  : status.ok
+                                  ? Colors.green
+                                  : Theme.of(context).colorScheme.error,
                             ),
-                            const SizedBox(height: 3),
-                            Text(
-                              '${account.email} · ${account.imapHost}:${account.imapPort}',
-                            ),
-                            const SizedBox(height: 7),
-                            Text(
-                              status?.message ??
-                                  (account.enabled ? '等待连接测试' : '已暂停扫描'),
-                              style: TextStyle(
-                                color: status == null
-                                    ? null
-                                    : status.ok
-                                    ? Colors.green
-                                    : Theme.of(context).colorScheme.error,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch(
+                          ),
+                        ],
+                      );
+                      final toggle = Switch(
                         value: account.enabled,
                         onChanged: (value) =>
                             controller.setAccountEnabled(account.id, value),
-                      ),
-                      PopupMenuButton<String>(
+                      );
+                      final menu = PopupMenuButton<String>(
                         onSelected: (value) async {
                           if (value == 'edit') onEdit(account);
                           if (value == 'delete') onDelete(account);
@@ -735,8 +832,44 @@ class AccountsPage extends StatelessWidget {
                             ),
                           ),
                         ],
-                      ),
-                    ],
+                      );
+                      if (compact) {
+                        return Column(
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                avatar,
+                                const SizedBox(width: 12),
+                                Expanded(child: details),
+                                menu,
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Text(
+                                  account.enabled ? '已启用扫描' : '已暂停扫描',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const Spacer(),
+                                toggle,
+                              ],
+                            ),
+                          ],
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          avatar,
+                          const SizedBox(width: 14),
+                          Expanded(child: details),
+                          toggle,
+                          menu,
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),
@@ -824,63 +957,63 @@ class TotpPage extends StatelessWidget {
                   : constraints.maxWidth >= 680
                   ? 2
                   : 1;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: count,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  mainAxisExtent: 174,
-                ),
-                itemCount: entries.length,
-                itemBuilder: (_, index) {
-                  final entry = entries[index];
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  entry.label,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
+              final cardWidth =
+                  (constraints.maxWidth - ((count - 1) * 12)) / count;
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: entries.map((entry) {
+                  return SizedBox(
+                    width: cardWidth,
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    entry.label,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                              PopupMenuButton<String>(
-                                onSelected: (value) => value == 'edit'
-                                    ? onEdit(entry)
-                                    : onDelete(entry),
-                                itemBuilder: (_) => const [
-                                  PopupMenuItem(
-                                    value: 'edit',
-                                    child: Text('编辑'),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 'delete',
-                                    child: Text('删除'),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          Text(
-                            entry.issuer.isEmpty ? '未设置服务商' : entry.issuer,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const Spacer(),
-                          TotpTile(entry: entry, onMessage: onMessage),
-                        ],
+                                PopupMenuButton<String>(
+                                  onSelected: (value) => value == 'edit'
+                                      ? onEdit(entry)
+                                      : onDelete(entry),
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(
+                                      value: 'edit',
+                                      child: Text('编辑'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('删除'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            Text(
+                              entry.issuer.isEmpty ? '未设置服务商' : entry.issuer,
+                              style: Theme.of(context).textTheme.bodySmall,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 12),
+                            TotpTile(entry: entry, onMessage: onMessage),
+                          ],
+                        ),
                       ),
                     ),
                   );
-                },
+                }).toList(),
               );
             },
           ),
@@ -1064,11 +1197,15 @@ class TotpTile extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  value.code,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 3,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value.code,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 3,
+                    ),
                   ),
                 ),
               ),

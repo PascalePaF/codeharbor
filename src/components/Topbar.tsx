@@ -18,12 +18,12 @@ export function Topbar({ page, search, onSearch }: { page: PageId; search: strin
       </div>
       <div className="topbar-actions">
         {(page === 'inbox' || page === 'accounts' || page === 'totp') && (
-          <label className="search-box">
+          <label className="search-box" aria-label={`搜索${current.title}`}>
             <Search size={17} />
             <input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="搜索…" />
           </label>
         )}
-        <div className="encrypted-pill"><LockKeyhole size={15} /> 本机加密</div>
+        <div className="encrypted-pill" title="邮箱凭据与 2FA 密钥仅在本机加密保存"><LockKeyhole size={15} /><span>本机加密</span></div>
       </div>
     </header>
   );

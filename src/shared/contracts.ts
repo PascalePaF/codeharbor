@@ -183,6 +183,7 @@ export interface AppBootstrap {
   settings: AppSettings;
   providers: ProviderPreset[];
   vault: VaultInfo;
+  smokeVerificationMessages?: VerificationMessage[];
 }
 
 export interface CodeHarborBridge {

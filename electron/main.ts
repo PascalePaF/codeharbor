@@ -7,6 +7,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  screen,
   shell,
   type OpenDialogOptions,
   type SaveDialogOptions,
@@ -47,6 +48,7 @@ let vault: VaultStore;
 let mailbox: MailboxService;
 let updater: UpdateService;
 let dataDirectory = '';
+let smokeCopiedText = '';
 
 const MAX_BACKUP_FILE_SIZE = 25 * 1024 * 1024;
 
@@ -177,14 +179,31 @@ async function importEncryptedBackup(
 }
 
 function registerIpc(): void {
-  registerHandler('app:bootstrap', async () => ({
-    version: app.getVersion(),
-    accounts: vault.listAccounts(),
-    totpEntries: vault.listTotpEntries(),
-    settings: vault.getSettings(),
-    providers: PROVIDERS,
-    vault: await vault.getVaultInfo(),
-  }));
+  registerHandler('app:bootstrap', async () => {
+    const accounts = vault.listAccounts();
+    const smokeAccount = accounts.find((account) => account.email === 'smoke-test@163.com');
+    return {
+      version: app.getVersion(),
+      accounts,
+      totpEntries: vault.listTotpEntries(),
+      settings: vault.getSettings(),
+      providers: PROVIDERS,
+      vault: await vault.getVaultInfo(),
+      smokeVerificationMessages: smokeTest && smokeAccount
+        ? [{
+            id: 'smoke-verification-fixture',
+            accountId: smokeAccount.id,
+            accountLabel: smokeAccount.label,
+            accountEmail: smokeAccount.email,
+            provider: smokeAccount.provider,
+            sender: 'ChatGPT <noreply@tm.openai.com>',
+            receivedAt: new Date().toISOString(),
+            codes: ['702434'],
+            purpose: 'ChatGPT 登录验证码',
+          }]
+        : undefined,
+    };
+  });
   registerHandler('accounts:save', (input: MailAccountInput) => vault.saveAccount(input));
   registerHandler('accounts:bulk-save', (inputs: MailAccountInput[]) =>
     vault.bulkSaveAccounts(inputs),
@@ -216,6 +235,10 @@ function registerIpc(): void {
   registerHandler('updater:check', () => updater.check());
   registerHandler('system:copy', (text: string) => {
     if (typeof text !== 'string' || text.length > 1000) throw new Error('复制内容无效');
+    if (smokeTest) {
+      smokeCopiedText = text;
+      return;
+    }
     clipboard.writeText(text);
   });
   registerHandler('system:open-external', async (url: string) => {
@@ -226,11 +249,14 @@ function registerIpc(): void {
 }
 
 async function createWindow(): Promise<void> {
+  const workArea = screen.getPrimaryDisplay().workAreaSize;
+  const initialWidth = Math.min(1440, Math.max(760, Math.round(workArea.width * 0.92)));
+  const initialHeight = Math.min(900, Math.max(560, Math.round(workArea.height * 0.9)));
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1080,
-    minHeight: 700,
+    width: initialWidth,
+    height: initialHeight,
+    minWidth: 760,
+    minHeight: 560,
     backgroundColor: '#07110f',
     show: false,
     autoHideMenuBar: true,
@@ -306,12 +332,126 @@ async function createWindow(): Promise<void> {
     await reloaded;
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 700));
 
+    smokeCopiedText = '';
+    const realCardClicked = await mainWindow.webContents.executeJavaScript(`(() => {
+      const button = document.querySelector('[data-message-id="smoke-verification-fixture"] .verification-codes button');
+      if (!(button instanceof HTMLButtonElement)) return false;
+      button.click();
+      return true;
+    })()`);
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 140));
+    const realCopyState = await mainWindow.webContents.executeJavaScript(`Boolean(document.querySelector('[data-message-id="smoke-verification-fixture"] .verification-codes .lucide-check'))`);
+    if (!realCardClicked || !realCopyState || smokeCopiedText !== '702434') {
+      throw new Error('Real verification card did not copy its code successfully');
+    }
+    await mainWindow.webContents.executeJavaScript(`document.querySelector('.toast > button')?.click()`);
+    let realCopyStateReset = false;
+    for (let attempt = 0; attempt < 20 && !realCopyStateReset; attempt += 1) {
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+      realCopyStateReset = await mainWindow.webContents.executeJavaScript(`!document.querySelector('[data-message-id="smoke-verification-fixture"] .verification-codes .lucide-check')`);
+    }
+    if (!realCopyStateReset) throw new Error('Verification card copy state did not reset');
+    const responsiveSnapshots: Array<{ width: number; height: number; columns: number; titleFont: number }> = [];
+    for (const [width, height, suffix, expectedColumns] of [
+      [1280, 760, 'wide', 3],
+      [900, 650, 'compact', 2],
+      [760, 560, 'narrow', 1],
+    ] as const) {
+      mainWindow.setSize(width, height);
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 240));
+      const responsive = await mainWindow.webContents.executeJavaScript(`(() => {
+        const page = document.querySelector('.page-scroll');
+        const columns = document.querySelector('.inbox-columns');
+        const card = document.querySelector('[data-message-id="smoke-verification-fixture"]');
+        const code = card?.querySelector('.verification-codes button');
+        const title = document.querySelector('.inbox-commandbar h2');
+        if (!page || !columns || !card || !code || !title) return null;
+        const cardRect = card.getBoundingClientRect();
+        const codeRect = code.getBoundingClientRect();
+        return {
+          viewportWidth: window.innerWidth,
+          documentFits: document.documentElement.scrollWidth <= window.innerWidth + 1,
+          pageFits: page.scrollWidth <= page.clientWidth + 1,
+          columnsFit: columns.scrollWidth <= columns.clientWidth + 1,
+          columns: getComputedStyle(columns).gridTemplateColumns.split(' ').filter(Boolean).length,
+          codeOnRight: codeRect.left >= cardRect.left + cardRect.width * 0.45,
+          codeContained: codeRect.right <= cardRect.right + 1,
+          titleFont: Number.parseFloat(getComputedStyle(title).fontSize),
+          codeFont: Number.parseFloat(getComputedStyle(code.querySelector('span')).fontSize),
+        };
+      })()`);
+      if (!responsive || !responsive.documentFits || !responsive.pageFits || !responsive.columnsFit) {
+        throw new Error(`Responsive layout overflow at ${width}x${height}: ${JSON.stringify(responsive)}`);
+      }
+      if (responsive.columns !== expectedColumns || !responsive.codeOnRight || !responsive.codeContained) {
+        throw new Error(`Responsive inbox layout is incorrect at ${width}x${height}: ${JSON.stringify(responsive)}`);
+      }
+      if (responsive.titleFont < 20 || responsive.titleFont > 28 || responsive.codeFont < 16 || responsive.codeFont > 21) {
+        throw new Error(`Responsive typography is outside readable bounds: ${JSON.stringify(responsive)}`);
+      }
+      responsiveSnapshots.push({ width, height, columns: responsive.columns, titleFont: responsive.titleFont });
+      const responsiveImage = await mainWindow.webContents.capturePage();
+      await writeFile(output.replace(/\.png$/i, `-inbox-${suffix}.png`), responsiveImage.toPNG());
+    }
+    if (responsiveSnapshots[0].titleFont <= responsiveSnapshots.at(-1)!.titleFont) {
+      throw new Error(`Responsive title typography did not adapt: ${JSON.stringify(responsiveSnapshots)}`);
+    }
+
+    const captureNarrowSurface = async (suffix: string): Promise<void> => {
+      mainWindow!.setSize(760, 560);
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 220));
+      const layout = await mainWindow!.webContents.executeJavaScript(`(() => {
+        const page = document.querySelector('.page-scroll');
+        const modal = document.querySelector('.modal-card');
+        if (!page) return null;
+        const overflowingControls = [...document.querySelectorAll('button, input, select, textarea')]
+          .filter((element) => element instanceof HTMLElement && element.offsetParent !== null)
+          .map((element) => ({ label: element.getAttribute('aria-label') || element.textContent?.trim().slice(0, 30) || element.tagName, rect: element.getBoundingClientRect() }))
+          .filter(({ rect }) => rect.width > 0 && (rect.left < -1 || rect.right > window.innerWidth + 1))
+          .map(({ label, rect }) => ({ label, left: Math.round(rect.left), right: Math.round(rect.right) }));
+        return {
+          documentFits: document.documentElement.scrollWidth <= window.innerWidth + 1,
+          pageFits: page.scrollWidth <= page.clientWidth + 1,
+          modalFits: !modal || modal.scrollWidth <= modal.clientWidth + 1,
+          overflowingControls,
+        };
+      })()`);
+      if (!layout || !layout.documentFits || !layout.pageFits || !layout.modalFits || layout.overflowingControls.length) {
+        throw new Error(`Narrow ${suffix} layout overflow: ${JSON.stringify(layout)}`);
+      }
+      const surfaceImage = await mainWindow!.webContents.capturePage();
+      await writeFile(output.replace(/\.png$/i, `-${suffix}-narrow.png`), surfaceImage.toPNG());
+    };
+    const restoreWindowSize = async (): Promise<void> => {
+      mainWindow!.setSize(initialWidth, initialHeight);
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 220));
+    };
+
+    await restoreWindowSize();
+
     await mainWindow.webContents.executeJavaScript(`
       document.querySelectorAll('.sidebar-nav button')[1]?.click()
     `);
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
     const accountImage = await mainWindow.webContents.capturePage();
     await writeFile(output.replace(/\.png$/i, '-accounts.png'), accountImage.toPNG());
+
+    await captureNarrowSurface('accounts');
+    await mainWindow.webContents.executeJavaScript(`document.querySelector('.menu-wrap .icon-button')?.click()`);
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
+    const narrowMenu = await mainWindow.webContents.executeJavaScript(`(() => {
+      const menu = document.querySelector('.context-menu');
+      if (!menu) return null;
+      const rect = menu.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: window.innerWidth, height: window.innerHeight };
+    })()`);
+    if (!narrowMenu || narrowMenu.left < 0 || narrowMenu.right > narrowMenu.width || narrowMenu.top < 0 || narrowMenu.bottom > narrowMenu.height) {
+      throw new Error(`Narrow account action menu is clipped: ${JSON.stringify(narrowMenu)}`);
+    }
+    const narrowMenuImage = await mainWindow.webContents.capturePage();
+    await writeFile(output.replace(/\.png$/i, '-accounts-menu-narrow.png'), narrowMenuImage.toPNG());
+    await mainWindow.webContents.executeJavaScript(`document.querySelector('.menu-wrap .icon-button')?.click()`);
+    await restoreWindowSize();
 
     await mainWindow.webContents.executeJavaScript(`
       document.querySelector('.menu-wrap .icon-button')?.click()
@@ -326,6 +466,8 @@ async function createWindow(): Promise<void> {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 1100));
     const totpImage = await mainWindow.webContents.capturePage();
     await writeFile(output.replace(/\.png$/i, '-totp.png'), totpImage.toPNG());
+    await captureNarrowSurface('totp');
+    await restoreWindowSize();
 
     await mainWindow.webContents.executeJavaScript(`
       document.querySelector('.totp-intro .page-actions button')?.click()
@@ -337,6 +479,8 @@ async function createWindow(): Promise<void> {
     }
     const qrImportImage = await mainWindow.webContents.capturePage();
     await writeFile(output.replace(/\.png$/i, '-totp-qr-import.png'), qrImportImage.toPNG());
+    await captureNarrowSurface('totp-qr-import');
+    await restoreWindowSize();
     await mainWindow.webContents.executeJavaScript(`
       document.querySelector('.modal-header .icon-button')?.click()
     `);
@@ -361,6 +505,8 @@ async function createWindow(): Promise<void> {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
     const settingsImage = await mainWindow.webContents.capturePage();
     await writeFile(output.replace(/\.png$/i, '-settings.png'), settingsImage.toPNG());
+    await captureNarrowSurface('settings');
+    await restoreWindowSize();
     await mainWindow.webContents.executeJavaScript(`
       document.querySelector('.theme-buttons button:last-child')?.click()
     `);
@@ -404,7 +550,7 @@ async function createWindow(): Promise<void> {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 180));
     const tutorialImage = await mainWindow.webContents.capturePage();
     await writeFile(output.replace(/\.png$/i, '-tutorials.png'), tutorialImage.toPNG());
-    console.log(`CODEHARBOR_SMOKE_OK ${JSON.stringify({ ...snapshot, backupSummary, mailboxStatus, lightTheme, darkTheme, updateScroll })}`);
+    console.log(`CODEHARBOR_SMOKE_OK ${JSON.stringify({ ...snapshot, backupSummary, mailboxStatus, responsiveSnapshots, lightTheme, darkTheme, updateScroll })}`);
     app.quit();
   }
 }
@@ -445,8 +591,14 @@ app.whenReady().then(async () => {
   app.on('activate', async () => {
     if (BrowserWindow.getAllWindows().length === 0) await createWindow();
   });
-}).catch((error) => {
-  console.error('Failed to start CodeHarbor:', error instanceof Error ? error.message : error);
+}).catch(async (error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error('Failed to start CodeHarbor:', message);
+  if (smokeTest) {
+    const output = resolve(process.env.CODEHARBOR_SMOKE_OUTPUT ?? 'test-results/smoke.png');
+    await mkdir(dirname(output), { recursive: true }).catch(() => undefined);
+    await writeFile(output.replace(/\.png$/i, '-error.txt'), message, 'utf8').catch(() => undefined);
+  }
   app.exit(1);
 });
 

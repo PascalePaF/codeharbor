@@ -1,6 +1,6 @@
 # CodeHarbor 跨平台客户端
 
-这是 CodeHarbor 验证码港的 Flutter 社区预览客户端，一套代码覆盖 Android、iOS 和 macOS。当前版本为 `1.0.3`。
+这是 CodeHarbor 验证码港的 Flutter 社区预览客户端，一套代码覆盖 Android、iOS 和 macOS。当前版本为 `1.0.4`。
 
 ## 已实现
 

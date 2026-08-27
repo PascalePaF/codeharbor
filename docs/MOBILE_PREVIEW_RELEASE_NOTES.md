@@ -1,6 +1,6 @@
 # CodeHarbor Mobile & macOS Community Preview
 
-这是 Android、iPhone/iPad 模拟器和 macOS 的 V1.0.3 社区开发预览。
+这是 Android、iPhone/iPad 模拟器和 macOS 的 V1.0.4 社区开发预览。
 
 ## 已实现
 
@@ -9,8 +9,9 @@
 - ChatGPT 登录专用只读 IMAP 扫描，只接受 OpenAI 官方 OTP 地址的 6 位码；新安装默认扫描最近 5 小时。
 - 6/8 位 TOTP，支持 SHA1、SHA256、SHA512、Base32 和 `otpauth://`。
 - Android/iPhone 相机扫码、Android/iOS/macOS 图片二维码导入，以及 Google Authenticator 批量迁移格式。
+- 根据手机、平板和 macOS 窗口自动调整标题栏、搜索框、验证码位置、2FA 卡片高度和扫码框尺寸。
 - Android Keystore / Apple Keychain 保护设备主密钥，本机保险库使用 AES-256-GCM。
-- 与 Windows V1.0.2 字节级兼容的密码加密 `.chbackup` 导入导出。
+- 与 Windows V1.0.2 及以后版本字节级兼容的密码加密 `.chbackup` 导入导出。
 - GitHub Actions 的无模拟器测试、Android 编译、iOS Simulator 编译和 macOS 编译。
 
 ## 下载说明

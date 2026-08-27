@@ -8,7 +8,7 @@ import {
   RefreshCw,
   SearchCheck,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatRelativeTime, maskEmail } from '../lib/format';
 import type {
   ProviderPreset,
@@ -27,8 +27,9 @@ interface InboxPageProps {
   lastScan?: string;
   onScanAll: () => Promise<void>;
   onScanAccount: (accountId: string) => Promise<void>;
-  onCopy: (value: string) => Promise<void>;
+  onCopy: (value: string) => Promise<boolean>;
   onGoAccounts: () => void;
+  onGoTotp: () => void;
 }
 
 export function InboxPage({
@@ -43,9 +44,11 @@ export function InboxPage({
   onScanAccount,
   onCopy,
   onGoAccounts,
+  onGoTotp,
 }: InboxPageProps) {
   const [accountFilter, setAccountFilter] = useState('all');
-  const [copiedCode, setCopiedCode] = useState('');
+  const [copiedKey, setCopiedKey] = useState('');
+  const copyTimer = useRef<number | undefined>(undefined);
   const enabled = accounts.filter((account) => account.enabled);
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -62,10 +65,15 @@ export function InboxPage({
     });
   }, [messages, search, accountFilter]);
 
-  const copy = async (code: string) => {
-    await onCopy(code);
-    setCopiedCode(code);
-    window.setTimeout(() => setCopiedCode(''), 1_400);
+  useEffect(() => () => {
+    if (copyTimer.current) window.clearTimeout(copyTimer.current);
+  }, []);
+
+  const copy = async (code: string, key: string) => {
+    if (!await onCopy(code)) return;
+    if (copyTimer.current) window.clearTimeout(copyTimer.current);
+    setCopiedKey(key);
+    copyTimer.current = window.setTimeout(() => setCopiedKey(''), 1_400);
   };
 
   const scanAccount = async (accountId: string) => {
@@ -144,7 +152,7 @@ export function InboxPage({
             <div><SearchCheck size={19} /><div><h3>{accountFilter === 'all' ? '全部验证码结果' : accounts.find((item) => item.id === accountFilter)?.label ?? '验证码结果'}</h3><span>{filtered.length} 条匹配结果</span></div></div>
             <span className="filter-note">仅显示 ChatGPT 登录验证码</span>
           </header>
-          <div className="results-scroll">
+          <div className="results-scroll" aria-live="polite">
             {!accounts.length ? (
               <div className="empty-state"><div className="empty-icon"><Inbox size={29} /></div><h3>先添加邮箱账户</h3><p>支持主流邮箱和自定义 IMAP。</p><button className="button primary" type="button" onClick={onGoAccounts}>添加邮箱</button></div>
             ) : scanningTarget && !filtered.length ? (
@@ -154,18 +162,21 @@ export function InboxPage({
             ) : filtered.map((message) => {
               const provider = providers.find((item) => item.id === message.provider);
               return (
-                <article className="verification-result" key={message.id}>
+                <article className="verification-result" data-message-id={message.id} key={message.id}>
                   <div className="verification-source">
                     <span className="provider-avatar small" style={{ '--provider-color': provider?.accent ?? '#4fae8a' } as React.CSSProperties}>{provider?.shortName.slice(0, 2) ?? 'IM'}</span>
-                    <div><strong>{message.sender}</strong><span>{message.accountLabel} · {formatRelativeTime(message.receivedAt)}</span></div>
+                    <div><strong title={message.sender}>{message.sender}</strong><span title={`${message.accountLabel} · ${message.accountEmail}`}>{message.accountLabel} · {formatRelativeTime(message.receivedAt)}</span></div>
                   </div>
-                  <div className="verification-purpose"><small>用途说明</small><strong>{message.purpose || '登录或身份验证'}</strong></div>
+                  <div className="verification-purpose"><small>用途说明</small><strong title={message.purpose || 'ChatGPT 登录验证码'}>{message.purpose || 'ChatGPT 登录验证码'}</strong></div>
                   <div className="verification-codes">
-                    {message.codes.map((code) => (
-                      <button type="button" onClick={() => void copy(code)} key={code} title="点击复制验证码">
-                        <span>{code}</span>{copiedCode === code ? <Check size={16} /> : <Clipboard size={16} />}
+                    {message.codes.map((code, index) => {
+                      const copyKey = `${message.id}:${index}:${code}`;
+                      return (
+                      <button type="button" onClick={() => void copy(code, copyKey)} key={copyKey} title="点击复制验证码" aria-label={`复制验证码 ${code}`}>
+                        <span>{code}</span>{copiedKey === copyKey ? <Check size={16} /> : <Clipboard size={16} />}
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </article>
               );
@@ -180,11 +191,11 @@ export function InboxPage({
           </header>
           <div className="rail-scroll">
             {!totpCodes.length ? (
-              <div className="rail-empty"><p>还没有 2FA 项目</p><span>在“2FA 动态码”页面添加</span></div>
+              <div className="rail-empty"><p>还没有 2FA 项目</p><span>添加后可在收件箱旁直接复制</span><button type="button" onClick={onGoTotp}>前往添加 2FA</button></div>
             ) : totpCodes.map((entry) => {
               const progress = Math.max(0, Math.min(100, (entry.secondsRemaining / entry.period) * 100));
               return (
-                <button className={`rail-totp ${entry.secondsRemaining <= 5 ? 'expiring' : ''}`} type="button" onClick={() => void copy(entry.code)} key={entry.id}>
+                <button className={`rail-totp ${entry.secondsRemaining <= 5 ? 'expiring' : ''}`} type="button" onClick={() => void copy(entry.code, `totp:${entry.id}`)} key={entry.id} aria-label={`复制 ${entry.label} 的动态码`}>
                   <span><strong>{entry.label}</strong><small>{entry.issuer || '未设置发行方'}</small></span>
                   <b>{entry.code}</b>
                   <i><span style={{ width: `${progress}%` }} /></i>

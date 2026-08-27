@@ -13,7 +13,7 @@ interface TotpPageProps {
   onSecureExport: () => void;
   onEdit: (entry: PublicTotpEntry) => void;
   onDelete: (entry: PublicTotpEntry) => Promise<void>;
-  onCopy: (value: string) => Promise<void>;
+  onCopy: (value: string) => Promise<boolean>;
 }
 
 export function TotpPage({ entries, codes, search, onAdd, onBulk, onQrImport, onSecureImport, onSecureExport, onEdit, onDelete, onCopy }: TotpPageProps) {
@@ -24,7 +24,7 @@ export function TotpPage({ entries, codes, search, onAdd, onBulk, onQrImport, on
   }, [codes, search]);
 
   const copy = async (entry: TotpCode) => {
-    await onCopy(entry.code);
+    if (!await onCopy(entry.code)) return;
     setCopied(entry.id);
     window.setTimeout(() => setCopied(''), 1400);
   };

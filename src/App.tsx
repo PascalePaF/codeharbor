@@ -62,6 +62,7 @@ export default function App() {
   const reload = useCallback(async () => {
     const next = await window.codeHarbor.bootstrap();
     setData(next);
+    if (next.smokeVerificationMessages) setMessages(next.smokeVerificationMessages);
     return next;
   }, []);
 
@@ -257,8 +258,14 @@ export default function App() {
   };
 
   const copy = async (value: string) => {
-    try { await window.codeHarbor.system.copy(value); toast('验证码已复制'); }
-    catch (error) { toast(friendlyError(error), 'error'); }
+    try {
+      await window.codeHarbor.system.copy(value);
+      toast('验证码已复制');
+      return true;
+    } catch (error) {
+      toast(friendlyError(error), 'error');
+      return false;
+    }
   };
 
   const changePage = (next: PageId) => { setPage(next); setSearch(''); };
@@ -278,7 +285,7 @@ export default function App() {
       <main className="main-column">
         <Topbar page={page} search={search} onSearch={setSearch} />
         <div className="page-scroll">
-          {page === 'inbox' && <InboxPage accounts={data.accounts} messages={messages} providers={data.providers} totpCodes={totpCodes} search={search} scanningTarget={scanningTarget} lastScan={lastScan} onScanAll={() => scanMail(false)} onScanAccount={(accountId) => scanMail(false, accountId)} onCopy={copy} onGoAccounts={() => changePage('accounts')} />}
+          {page === 'inbox' && <InboxPage accounts={data.accounts} messages={messages} providers={data.providers} totpCodes={totpCodes} search={search} scanningTarget={scanningTarget} lastScan={lastScan} onScanAll={() => scanMail(false)} onScanAccount={(accountId) => scanMail(false, accountId)} onCopy={copy} onGoAccounts={() => changePage('accounts')} onGoTotp={() => changePage('totp')} />}
           {page === 'accounts' && <AccountsPage accounts={data.accounts} providers={data.providers} search={search} testingId={testingId} onAdd={() => setModal({ type: 'account' })} onBulk={() => setModal({ type: 'mail-import' })} onSecureImport={() => setModal({ type: 'backup-import', scope: 'accounts' })} onSecureExport={() => setModal({ type: 'backup-export', scope: 'accounts' })} onEdit={(account) => setModal({ type: 'account', account })} onDelete={deleteAccount} onToggle={toggleAccount} onTest={testAccount} />}
           {page === 'totp' && <TotpPage entries={data.totpEntries} codes={totpCodes} search={search} onAdd={() => setModal({ type: 'totp' })} onBulk={() => setModal({ type: 'totp-import' })} onQrImport={() => setModal({ type: 'totp-qr-import' })} onSecureImport={() => setModal({ type: 'backup-import', scope: 'totp' })} onSecureExport={() => setModal({ type: 'backup-export', scope: 'totp' })} onEdit={(entry) => setModal({ type: 'totp', entry })} onDelete={deleteTotp} onCopy={copy} />}
           {page === 'settings' && <SettingsPage settings={data.settings} vault={data.vault} providers={data.providers} version={data.version} updateState={updateState} busy={busy} onSave={saveSettings} onCheckUpdates={checkForUpdates} onExport={() => setModal({ type: 'backup-export', scope: 'all' })} onImport={() => setModal({ type: 'backup-import', scope: 'all' })} onOpenExternal={openExternal} />}

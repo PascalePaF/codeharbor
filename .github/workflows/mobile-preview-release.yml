@@ -13,7 +13,19 @@ env:
   APP_DIRECTORY: apps/codeharbor_flutter
 
 jobs:
+  validate-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify tag matches Flutter application version
+        shell: bash
+        run: |
+          SOURCE_VERSION=$(awk '/^version:/{print $2; exit}' "$APP_DIRECTORY/pubspec.yaml")
+          SOURCE_VERSION=${SOURCE_VERSION%%+*}
+          test "$GITHUB_REF_NAME" = "mobile-v$SOURCE_VERSION"
+
   android:
+    needs: validate-version
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -34,8 +46,10 @@ jobs:
         with:
           name: android-preview
           path: ${{ env.APP_DIRECTORY }}/CodeHarbor-Android-community-debug.apk
+          if-no-files-found: error
 
   apple:
+    needs: validate-version
     runs-on: macos-15
     timeout-minutes: 45
     steps:
@@ -60,9 +74,10 @@ jobs:
           path: |
             ${{ env.APP_DIRECTORY }}/CodeHarbor-iOS-Simulator.zip
             ${{ env.APP_DIRECTORY }}/CodeHarbor-macOS-unsigned.zip
+          if-no-files-found: error
 
   publish-prerelease:
-    needs: [android, apple]
+    needs: [validate-version, android, apple]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -74,8 +89,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          cd artifacts
+          sha256sum * > SHA256SUMS.txt
+          cd ..
           gh release create "$GITHUB_REF_NAME" artifacts/* \
             --verify-tag \
             --prerelease \
-            --title "CodeHarbor Mobile & macOS Community Preview" \
+            --title "CodeHarbor Mobile & macOS Community Preview $GITHUB_REF_NAME" \
             --notes-file docs/MOBILE_PREVIEW_RELEASE_NOTES.md

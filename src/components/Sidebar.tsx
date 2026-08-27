@@ -37,6 +37,8 @@ export function Sidebar({ page, onChange, accountCount, codeCount, version }: Si
               className={page === item.id ? 'active' : ''}
               type="button"
               onClick={() => onChange(item.id)}
+              aria-label={item.label}
+              title={item.label}
             >
               <Icon size={19} strokeWidth={1.8} />
               <span>{item.label}</span>
