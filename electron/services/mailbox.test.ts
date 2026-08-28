@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { friendlyConnectionError, normalizeRecentUids } from './mailbox';
+import {
+  friendlyConnectionError,
+  mergeCertificateAuthorities,
+  normalizeRecentUids,
+} from './mailbox';
 import { MailboxService } from './mailbox';
 import type { VaultStore } from './vault';
 
@@ -20,6 +24,20 @@ describe('mailbox connection errors', () => {
       imapHost: 'imap.163.com',
       imapPort: 993,
     })).toBe('连接 imap.163.com:993 超时（连接并认证）：请检查代理、防火墙或稍后重试');
+  });
+
+  it('merges bundled and system certificate authorities without duplicates', () => {
+    expect(mergeCertificateAuthorities(['bundled-a', 'shared'], ['system-a', 'shared']))
+      .toEqual(['bundled-a', 'shared', 'system-a']);
+  });
+
+  it('explains certificate interception without suggesting an unsafe bypass', () => {
+    expect(friendlyConnectionError(Object.assign(
+      new Error('self-signed certificate in certificate chain'),
+      { code: 'SELF_SIGNED_CERT_IN_CHAIN' },
+    ))).toBe(
+      'IMAP 证书未被系统信任，为保护凭据已停止连接；请检查系统时间，以及代理或安全软件的根证书是否已正确安装',
+    );
   });
 
   it('keeps only unique recent UIDs in newest-first order', () => {

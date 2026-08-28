@@ -1,4 +1,5 @@
 import { ImapFlow, type FetchMessageObject, type MessageAddressObject } from 'imapflow';
+import { getCACertificates } from 'node:tls';
 import type {
   AccountScanStatus,
   ScanResult,
@@ -40,6 +41,22 @@ const MAX_MESSAGE_BYTES = 1024 * 1024;
 const CONNECT_TIMEOUT_MS = 15_000;
 const SOCKET_TIMEOUT_MS = 40_000;
 const LOGOUT_TIMEOUT_MS = 2_000;
+
+let trustedCaCertificates: string[] | undefined;
+
+export function mergeCertificateAuthorities(
+  ...sources: ReadonlyArray<ReadonlyArray<string>>
+): string[] {
+  return [...new Set(sources.flat().filter(Boolean))];
+}
+
+function getTrustedCaCertificates(): string[] {
+  trustedCaCertificates ??= mergeCertificateAuthorities(
+    getCACertificates('default'),
+    getCACertificates('system'),
+  );
+  return trustedCaCertificates;
+}
 
 function formatAddress(address: MessageAddressObject | undefined): string {
   if (!address) return '未知发件人';
@@ -130,8 +147,14 @@ export function friendlyConnectionError(
   if (/ECONNRESET|EPIPE|socket.*closed|Connection closed/i.test(message)) {
     return `连接被服务器中断（${stageName(stage)}），请稍后重试并确认 IMAP 已开启`;
   }
-  if (/certificate|self signed|unable to verify|ERR_TLS/i.test(message)) {
-    return 'IMAP 服务器证书校验失败，为保护凭据已停止连接';
+  if (/CERT_HAS_EXPIRED|certificate.*expired/i.test(message)) {
+    return 'IMAP 服务器证书已过期或系统时间不正确，为保护凭据已停止连接';
+  }
+  if (/ALTNAME|hostname.*certificate|ERR_TLS_CERT_ALTNAME_INVALID/i.test(message)) {
+    return 'IMAP 证书与服务器地址不匹配，为保护凭据已停止连接；请检查 IMAP 主机名';
+  }
+  if (/certificate|self[-_ ]signed|unable.*verify|UNABLE_TO_GET_ISSUER|ERR_TLS/i.test(message)) {
+    return 'IMAP 证书未被系统信任，为保护凭据已停止连接；请检查系统时间，以及代理或安全软件的根证书是否已正确安装';
   }
   if (/mailbox.*not found|NONEXISTENT|cannot open mailbox/i.test(message)) {
     return '账户已连接，但服务器无法以只读方式打开 INBOX 收件箱';
@@ -182,6 +205,10 @@ class ImapFlowSession implements MailboxSession {
         vendor: 'CodeHarbor',
       },
       tls: {
+        // Keep strict certificate and hostname validation while honoring roots that the user
+        // or administrator explicitly trusted in the operating-system certificate store.
+        // This supports legitimate TLS-inspection software without weakening verification.
+        ca: getTrustedCaCertificates(),
         minVersion: 'TLSv1.2',
         rejectUnauthorized: true,
       },

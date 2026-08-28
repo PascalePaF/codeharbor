@@ -77,6 +77,22 @@ function validateBackupScope(scope: BackupScope): BackupScope {
   return scope;
 }
 
+async function captureSmokePage(window: BrowserWindow) {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      return await window.webContents.capturePage();
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (message !== 'UnknownVizError' || attempt === 4) throw error;
+      window.webContents.invalidate();
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, attempt * 180));
+    }
+  }
+  throw lastError;
+}
+
 function scopeFileName(scope: BackupScope, date: string): string {
   if (scope === 'accounts') return `CodeHarbor-Mailboxes-${date}.chbackup`;
   if (scope === 'totp') return `CodeHarbor-2FA-${date}.chbackup`;
@@ -298,7 +314,7 @@ async function createWindow(): Promise<void> {
     })`);
     const output = resolve(process.env.CODEHARBOR_SMOKE_OUTPUT ?? 'test-results/smoke.png');
     await mkdir(dirname(output), { recursive: true });
-    const image = await mainWindow.webContents.capturePage();
+    const image = await captureSmokePage(mainWindow);
     await writeFile(output, image.toPNG());
 
     await mainWindow.webContents.executeJavaScript(`Promise.all([
@@ -390,7 +406,7 @@ async function createWindow(): Promise<void> {
         throw new Error(`Responsive typography is outside readable bounds: ${JSON.stringify(responsive)}`);
       }
       responsiveSnapshots.push({ width, height, columns: responsive.columns, titleFont: responsive.titleFont });
-      const responsiveImage = await mainWindow.webContents.capturePage();
+      const responsiveImage = await captureSmokePage(mainWindow);
       await writeFile(output.replace(/\.png$/i, `-inbox-${suffix}.png`), responsiveImage.toPNG());
     }
     if (responsiveSnapshots[0].titleFont <= responsiveSnapshots.at(-1)!.titleFont) {
@@ -419,7 +435,7 @@ async function createWindow(): Promise<void> {
       if (!layout || !layout.documentFits || !layout.pageFits || !layout.modalFits || layout.overflowingControls.length) {
         throw new Error(`Narrow ${suffix} layout overflow: ${JSON.stringify(layout)}`);
       }
-      const surfaceImage = await mainWindow!.webContents.capturePage();
+      const surfaceImage = await captureSmokePage(mainWindow!);
       await writeFile(output.replace(/\.png$/i, `-${suffix}-narrow.png`), surfaceImage.toPNG());
     };
     const restoreWindowSize = async (): Promise<void> => {
@@ -433,7 +449,7 @@ async function createWindow(): Promise<void> {
       document.querySelectorAll('.sidebar-nav button')[1]?.click()
     `);
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
-    const accountImage = await mainWindow.webContents.capturePage();
+    const accountImage = await captureSmokePage(mainWindow);
     await writeFile(output.replace(/\.png$/i, '-accounts.png'), accountImage.toPNG());
 
     await captureNarrowSurface('accounts');
@@ -448,7 +464,7 @@ async function createWindow(): Promise<void> {
     if (!narrowMenu || narrowMenu.left < 0 || narrowMenu.right > narrowMenu.width || narrowMenu.top < 0 || narrowMenu.bottom > narrowMenu.height) {
       throw new Error(`Narrow account action menu is clipped: ${JSON.stringify(narrowMenu)}`);
     }
-    const narrowMenuImage = await mainWindow.webContents.capturePage();
+    const narrowMenuImage = await captureSmokePage(mainWindow);
     await writeFile(output.replace(/\.png$/i, '-accounts-menu-narrow.png'), narrowMenuImage.toPNG());
     await mainWindow.webContents.executeJavaScript(`document.querySelector('.menu-wrap .icon-button')?.click()`);
     await restoreWindowSize();
@@ -457,14 +473,14 @@ async function createWindow(): Promise<void> {
       document.querySelector('.menu-wrap .icon-button')?.click()
     `);
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 180));
-    const accountMenuImage = await mainWindow.webContents.capturePage();
+    const accountMenuImage = await captureSmokePage(mainWindow);
     await writeFile(output.replace(/\.png$/i, '-accounts-menu.png'), accountMenuImage.toPNG());
 
     await mainWindow.webContents.executeJavaScript(`
       document.querySelectorAll('.sidebar-nav button')[2]?.click()
     `);
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 1100));
-    const totpImage = await mainWindow.webContents.capturePage();
+    const totpImage = await captureSmokePage(mainWindow);
     await writeFile(output.replace(/\.png$/i, '-totp.png'), totpImage.toPNG());
     await captureNarrowSurface('totp');
     await restoreWindowSize();
@@ -477,7 +493,7 @@ async function createWindow(): Promise<void> {
     if (!String(qrModalTitle).includes('扫描验证器二维码')) {
       throw new Error('Authenticator QR import modal did not open');
     }
-    const qrImportImage = await mainWindow.webContents.capturePage();
+    const qrImportImage = await captureSmokePage(mainWindow);
     await writeFile(output.replace(/\.png$/i, '-totp-qr-import.png'), qrImportImage.toPNG());
     await captureNarrowSurface('totp-qr-import');
     await restoreWindowSize();
@@ -493,7 +509,7 @@ async function createWindow(): Promise<void> {
       document.querySelector('.help-hint')?.focus()
     `);
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 120));
-    const totpHelpImage = await mainWindow.webContents.capturePage();
+    const totpHelpImage = await captureSmokePage(mainWindow);
     await writeFile(output.replace(/\.png$/i, '-totp-help.png'), totpHelpImage.toPNG());
     await mainWindow.webContents.executeJavaScript(`
       document.querySelector('.modal-header .icon-button')?.click()
@@ -503,7 +519,7 @@ async function createWindow(): Promise<void> {
       document.querySelectorAll('.sidebar-nav button')[3]?.click()
     `);
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
-    const settingsImage = await mainWindow.webContents.capturePage();
+    const settingsImage = await captureSmokePage(mainWindow);
     await writeFile(output.replace(/\.png$/i, '-settings.png'), settingsImage.toPNG());
     await captureNarrowSurface('settings');
     await restoreWindowSize();
@@ -513,7 +529,7 @@ async function createWindow(): Promise<void> {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 280));
     const lightTheme = await mainWindow.webContents.executeJavaScript(`document.documentElement.dataset.theme`);
     if (lightTheme !== 'light') throw new Error('Light theme did not apply');
-    const settingsLightImage = await mainWindow.webContents.capturePage();
+    const settingsLightImage = await captureSmokePage(mainWindow);
     await writeFile(output.replace(/\.png$/i, '-settings-light.png'), settingsLightImage.toPNG());
     await mainWindow.webContents.executeJavaScript(`
       document.querySelector('.theme-buttons button:first-child')?.click()
@@ -530,13 +546,13 @@ async function createWindow(): Promise<void> {
       throw new Error(`Settings page did not expose working vertical scrolling: ${JSON.stringify(updateScroll)}`);
     }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
-    const updateImage = await mainWindow.webContents.capturePage();
+    const updateImage = await captureSmokePage(mainWindow);
     await writeFile(output.replace(/\.png$/i, '-update.png'), updateImage.toPNG());
     await mainWindow.webContents.executeJavaScript(`
       document.querySelector('.portability-card .button.primary')?.click()
     `);
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 180));
-    const backupImage = await mainWindow.webContents.capturePage();
+    const backupImage = await captureSmokePage(mainWindow);
     await writeFile(output.replace(/\.png$/i, '-backup.png'), backupImage.toPNG());
     await mainWindow.webContents.executeJavaScript(`
       document.querySelector('.modal-header .icon-button')?.click();
@@ -548,7 +564,7 @@ async function createWindow(): Promise<void> {
       }
     `);
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 180));
-    const tutorialImage = await mainWindow.webContents.capturePage();
+    const tutorialImage = await captureSmokePage(mainWindow);
     await writeFile(output.replace(/\.png$/i, '-tutorials.png'), tutorialImage.toPNG());
     console.log(`CODEHARBOR_SMOKE_OK ${JSON.stringify({ ...snapshot, backupSummary, mailboxStatus, responsiveSnapshots, lightTheme, darkTheme, updateScroll })}`);
     app.quit();
@@ -593,11 +609,12 @@ app.whenReady().then(async () => {
   });
 }).catch(async (error) => {
   const message = error instanceof Error ? error.message : String(error);
-  console.error('Failed to start CodeHarbor:', message);
+  const diagnostic = error instanceof Error ? error.stack ?? error.message : String(error);
+  console.error('Failed to start CodeHarbor:', diagnostic);
   if (smokeTest) {
     const output = resolve(process.env.CODEHARBOR_SMOKE_OUTPUT ?? 'test-results/smoke.png');
     await mkdir(dirname(output), { recursive: true }).catch(() => undefined);
-    await writeFile(output.replace(/\.png$/i, '-error.txt'), message, 'utf8').catch(() => undefined);
+    await writeFile(output.replace(/\.png$/i, '-error.txt'), diagnostic, 'utf8').catch(() => undefined);
   }
   app.exit(1);
 });
