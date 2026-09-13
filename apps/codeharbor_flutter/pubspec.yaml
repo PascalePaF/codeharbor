@@ -43,7 +43,7 @@ dependencies:
   crypto: ^3.0.7
   uuid: ^4.6.0
   intl: ^0.20.3
-  mobile_scanner: 7.4.0
+  mobile_scanner: 7.4.1
 
 dev_dependencies:
   flutter_test:
